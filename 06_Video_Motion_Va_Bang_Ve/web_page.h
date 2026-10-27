@@ -58,12 +58,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
     .btn-effect { background: #1e1b4b; border: 1px solid #6366f1; color: #c7d2fe; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-effect:hover { background: #312e81; }
+    .badge { display: inline-block; background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 4px; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Điện Thoại Thu Nhỏ ESP32</h1>
-    <p class="sub">Khung ảnh, Video Motion, Bảng viết tay & Đồng hồ thời tiết</p>
+    <p class="sub">Khung ảnh, Video Motion, Bảng viết & Smartwatch thời tiết</p>
 
     <!-- TABS -->
     <div class="tabs">
@@ -106,23 +107,29 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
           <button class="btn-pick" style="background:#8b5cf6;">🎞️ Chọn Video (.mp4 / .mov) hoặc GIF</button>
           <input type="file" id="fileInputVid" accept="video/*,.gif">
         </div>
+
         <div id="vidPreviewBox" style="display:none; text-align:center; margin:10px 0;">
-          <video id="vidPreview" style="max-width:200px; max-height:260px; border-radius:8px; border:1px solid #475569;" autoplay loop muted playsinline></video>
+          <video id="vidPreview" style="max-width:200px; max-height:240px; border-radius:8px; border:1px solid #475569;" autoplay loop muted playsinline></video>
+          <div class="controls" style="margin-top:8px;">
+            <button class="btn-sec" onclick="rotateVideo()">🔄 Xoay Video: <span class="badge" id="vidRotBadge">0°</span></button>
+            <button class="btn-sec" onclick="toggleVidFit()">📐 Chế độ Fit: <span class="badge" id="vidFitBadge">Lấp đầy</span></button>
+          </div>
         </div>
+
         <button class="btn-send" id="sendBtnVid" style="display:none;" onclick="processAndUploadVideo()">🚀 Chuyển đổi & Gửi Video lên ESP32</button>
       </div>
 
       <div class="form-group" style="margin-top:16px; border-top:1px solid #334155; padding-top:12px;">
-        <label>✨ Hiệu Ứng Motion Graphic Sẵn Có:</label>
+        <label>✨ Hiệu Ứng Motion Graphic Sẵn Có (Bấm là chạy ngay):</label>
         <div class="grid-2">
           <button class="btn-effect" onclick="setEffect('matrix')">🟢 Mưa Số Matrix</button>
           <button class="btn-effect" onclick="setEffect('starfield')">🌌 Vũ Trụ 3D</button>
-          <button class="btn-effect" onclick="setEffect('wave')">🌈 Sóng Neon</button>
-          <button class="btn-effect" onclick="setEffect('mjpeg')">▶️ Phát Video Đã Tải</button>
+          <button class="btn-effect" onclick="setEffect('wave')">🌈 Sóng Âm Neon</button>
+          <button class="btn-effect" onclick="setEffect('mjpeg')">▶️ Video Vừa Tải</button>
         </div>
       </div>
       <div class="tip-box">
-        💡 <b>Tương thích 100%:</b> Trình duyệt sẽ tự động cắt khung hình và tối ưu video 240x320 để ESP32 phát mượt mà không bị giật!
+        💡 <b>Mẹo Video:</b> Nếu video quay ngang (16:9), bạn có thể bấm nút <b>🔄 Xoay Video 90°</b> để xoay dọc vừa khít toàn màn hình 240x320 của ESP32!
       </div>
     </div>
 
@@ -130,7 +137,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="tab-pane" id="paneDraw">
       <div class="tip-box" style="margin-top:0;">
         ✍️ <b>Bút Cảm Ứng Trên Màn Hình CYD:</b><br>
-        Màn hình hỗ trợ cảm ứng lực. Bạn có thể dùng <b>bút cảm ứng (Stylus), móng tay hoặc đầu bút nhựa</b> để viết vẽ trực tiếp lên màn hình!
+        Màn hình hỗ trợ cảm ứng lực. Bạn có thể dùng <b>bút cảm ứng (Stylus), móng tay hoặc đầu bút nhựa</b> để viết vẽ trực tiếp lên màn hình! Đổi màu trên thanh công cụ sẽ không bị xoá mất nét vẽ.
       </div>
       
       <button class="btn-action" style="background:#10b981; margin-top:14px;" onclick="openWhiteboard()">🖌️ MỞ BẢNG VIẾT TAY TRÊN ESP32</button>
@@ -163,9 +170,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       </div>
 
       <div class="form-group" style="border-top:1px solid #334155; padding-top:12px;">
-        <label>🌦️ Cập nhật Thời tiết & Lượng mưa cho Smartwatch:</label>
+        <label>🌦️ Thời tiết & Lượng mưa cho Smartwatch:</label>
+        <p style="font-size:12px; color:#94a3b8; margin-bottom:8px;">ESP32 tự động lấy thời tiết thực tế từ Open-Meteo & đồng bộ chuẩn qua điện thoại.</p>
         <div class="grid-2">
-          <input type="number" id="inpTemp" placeholder="Nhiệt độ (°C)" value="27">
+          <input type="number" id="inpTemp" placeholder="Nhiệt độ (°C)" value="28">
           <input type="number" id="inpRain" placeholder="Lượng mưa (mm)" step="0.1" value="0.0">
         </div>
         <button class="btn-action" style="background:#059669; margin-top:8px;" onclick="syncWeather()">🌤️ Đồng Bộ Thời Tiết Sang ESP32</button>
@@ -188,6 +196,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       main: { img: new Image(), rot: 0, fit: 'cover', zoom: 1.0, panX: 0, panY: 0, isDrag: false, sX: 0, sY: 0 }
     };
     let selectedVideoFile = null;
+    let videoRot = 0;
+    let videoFit = 'cover';
     const TARGET_W = 240;
     const TARGET_H = 320;
     const statusMsg = document.getElementById('statusMsg');
@@ -292,11 +302,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }, 'image/jpeg', 0.9);
     };
 
-    // --- XỬ LÝ VIDEO & GIF CHUYỂN ĐỔI MJPEG ---
+    // --- VIDEO & GIF XỬ LÝ XOAY 90° & CHUYỂN ĐỔI MJPEG ---
+    const rotateVideo = () => {
+      videoRot = (videoRot + 90) % 360;
+      document.getElementById('vidRotBadge').innerText = videoRot + '°';
+      const vid = document.getElementById('vidPreview');
+      vid.style.transform = 'rotate(' + videoRot + 'deg)';
+    };
+
+    const toggleVidFit = () => {
+      videoFit = (videoFit === 'cover') ? 'contain' : 'cover';
+      document.getElementById('vidFitBadge').innerText = (videoFit === 'cover') ? 'Lấp đầy' : 'Vừa vặn';
+    };
+
     document.getElementById('fileInputVid').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
       selectedVideoFile = file;
+      videoRot = 0;
+      videoFit = 'cover';
+      document.getElementById('vidRotBadge').innerText = '0°';
+      document.getElementById('vidFitBadge').innerText = 'Lấp đầy';
 
       const vidPreview = document.getElementById('vidPreview');
       const vidBox = document.getElementById('vidPreviewBox');
@@ -309,6 +335,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         statusMsg.innerText = 'Đã chọn ảnh GIF (' + Math.round(file.size/1024) + ' KB)';
       } else {
         vidPreview.src = URL.createObjectURL(file);
+        vidPreview.style.transform = 'none';
         vidBox.style.display = 'block';
         sendBtn.style.display = 'block';
         statusMsg.style.color = '#38bdf8';
@@ -323,7 +350,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       pBar.style.display = 'block';
       pFill.style.width = '10%';
 
-      // Nếu là file GIF: Gửi trực tiếp
+      // Nếu là GIF: gửi trực tiếp
       if (selectedVideoFile.type.includes('gif') || selectedVideoFile.name.toLowerCase().endsWith('.gif')) {
         statusMsg.innerText = 'Đang gửi file GIF lên ESP32...';
         const formData = new FormData();
@@ -342,7 +369,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         return;
       }
 
-      // Nếu là Video (MP4/MOV/WebM): Trích xuất 30 frames thành MJPEG
+      // Nếu là Video: Trích xuất frame có hỗ trợ Xoay 90°
       statusMsg.innerText = 'Đang trích xuất khung hình video sang 240x320...';
       const video = document.createElement('video');
       video.muted = true;
@@ -397,17 +424,28 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         };
 
         video.onseeked = () => {
-          let vw = video.videoWidth || 240;
-          let vh = video.videoHeight || 320;
-          let scale = Math.max(240 / vw, 320 / vh);
-          let sw = vw * scale;
-          let sh = vh * scale;
-          let dx = (240 - sw) / 2;
-          let dy = (320 - sh) / 2;
-
           tempCtx.fillStyle = '#000';
           tempCtx.fillRect(0, 0, 240, 320);
-          tempCtx.drawImage(video, dx, dy, sw, sh);
+
+          tempCtx.save();
+          tempCtx.translate(120, 160);
+          tempCtx.rotate((videoRot * Math.PI) / 180);
+
+          let vw = video.videoWidth || 240;
+          let vh = video.videoHeight || 320;
+          let effW = vw;
+          let effH = vh;
+          if (videoRot === 90 || videoRot === 270) {
+            effW = vh;
+            effH = vw;
+          }
+
+          let scale = (videoFit === 'cover') ? Math.max(240 / effW, 320 / effH) : Math.min(240 / effW, 320 / effH);
+          let drawW = vw * scale;
+          let drawH = vh * scale;
+
+          tempCtx.drawImage(video, -drawW / 2, -drawH / 2, drawW, drawH);
+          tempCtx.restore();
 
           tempCanvas.toBlob((blob) => {
             frameBlobs.push(blob);
@@ -424,7 +462,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       video.onerror = () => {
         sendBtn.disabled = false;
         statusMsg.style.color = '#ef4444';
-        statusMsg.innerText = '❌ Lỗi đọc video trên điện thoại!';
+        statusMsg.innerText = '❌ Lỗi đọc video!';
       };
     };
 
@@ -442,7 +480,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .then(r => r.text())
         .then(res => {
           statusMsg.style.color = '#10b981';
-          statusMsg.innerText = '✅ Đã mở bảng vẽ trên màn hình ESP32! Dùng bút viết nhé.';
+          statusMsg.innerText = '✅ Đã mở bảng vẽ trên ESP32! Dùng bút viết nhé.';
         });
     };
 
