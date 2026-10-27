@@ -31,9 +31,18 @@ Dự án bao gồm:
      * *Kiểu 2:* Ảnh chờ riêng biệt (tải ảnh screensaver phụ độc lập với ảnh chính).
      * *Kiểu 3:* Chế độ ngủ tắt màn hình (Deep Sleep Backlight Off), tiết kiệm pin tối đa.
    * Cấu hình và ảnh lưu bền vững trong LittleFS Flash.
-6. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
-7. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
-8. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
+6. **Bài 6 - Video/Motion Graphic & Bảng Viết Tay Bằng Bút Cảm Ứng (`06_Video_Motion_Va_Bang_Ve`):**
+   * **Video Motion Graphic từ điện thoại:**
+     * Tải và phát lặp vô tận các định dạng GIF chuyển động, sticker, video motion mượt mà ở 20-30 fps với thư viện tối ưu `AnimatedGIF`.
+     * Tích hợp sẵn 3 hiệu ứng Motion Graphic đồ họa: Ma trận Matrix số rơi neon, Vũ trụ ngàn sao 3D Starfield Warp, Sóng âm neon sống động.
+   * **Bảng Viết Tay Trực Tiếp Bằng Bút Cảm Ứng (Whiteboard Studio):**
+     * Tận dụng cảm ứng lực XPT2046 siêu nhạy trên mạch CYD, dùng bút cảm ứng (stylus), móng tay hoặc que nhựa để viết vẽ nét tròn mềm mại.
+     * Bảng màu 6 màu: Trắng, Vàng, Xanh lá, Xanh dương, Đỏ, Tẩy xoá.
+     * Nút Xoá bảng, Lưu ghi chú và Thoát trực tiếp trên màn hình.
+     * Ghi chú viết tay lưu bền vững trong LittleFS, có thể cài làm màn hình chính hoặc màn hình chờ!
+7. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
+8. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
+9. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
 
 ---
 

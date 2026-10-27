@@ -168,6 +168,19 @@ Architecture:
 3. **Persistent Flash Configuration:**
    - Stores settings in `/config.json` via LittleFS and ArduinoJson 7 so user preferences persist across power cycles.
 
+### Step 6: Video/Motion Graphics & Touch Stylus Whiteboard (`06_Video_Motion_Va_Bang_Ve`)
+Architecture:
+1. **Animated GIF & Motion Graphic Player:**
+   - Powered by optimized `AnimatedGIF` library streaming directly from LittleFS flash (`/motion.gif`).
+   - Supports 20-30 fps playback of animated GIFs, loops, motion graphics, and stickers uploaded from smartphone.
+   - Built-in real-time generative motion graphics: Matrix Digital Rain, 3D Starfield Warp, and Neon Wave visualizer.
+2. **Interactive Stylus Handwriting & Whiteboard Studio:**
+   - Utilizes XPT2046 resistive pressure touch for responsive stylus, touch pen, or fingernail handwriting.
+   - 6-color palette (White, Yellow, Green, Cyan, Red, Eraser).
+   - Real-time vector stroke recording saved to LittleFS (`/note.strokes`) with zero lag.
+   - Clear, Save, and Exit controls directly on the touchscreen.
+   - Saved handwriting notes can be recalled anytime or set as the standby screensaver.
+
 ---
 
 ## 6. Automated Python Flashing Tool (`tools/flash_tool.py`)
