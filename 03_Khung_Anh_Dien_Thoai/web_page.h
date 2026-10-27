@@ -29,8 +29,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     .btn-sec { background: #334155; color: #e2e8f0; border: none; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; text-align: center; }
     .btn-sec:active { background: #475569; }
 
-    .btn-send { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 700; width: 100%; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); display: none; }
+    .btn-send { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 700; width: 100%; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); display: none; margin-bottom: 10px; }
     .btn-send:disabled { background: #64748b; cursor: not-allowed; box-shadow: none; }
+
+    .btn-color { background: #6366f1; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; }
+    .btn-color:active { background: #4f46e5; }
 
     .progress-bar { width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 14px; display: none; }
     .progress-fill { width: 0%; height: 100%; background: #10b981; transition: width 0.2s; }
@@ -63,6 +66,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="progress-fill" id="progressFill"></div>
     </div>
     <div class="status-msg" id="statusMsg"></div>
+
+    <button class="btn-color" onclick="toggleColorOrder()">🎨 Đổi hệ màu RGB / BGR trực tiếp trên màn hình</button>
   </div>
 
   <script>
@@ -73,6 +78,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const ctx = canvas.getContext('2d');
     const TARGET_W = 240;
     const TARGET_H = 320;
+    const statusMsg = document.getElementById('statusMsg');
 
     document.getElementById('fileInput').addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -132,7 +138,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       const sendBtn = document.getElementById('sendBtn');
       const pBar = document.getElementById('progressBar');
       const pFill = document.getElementById('progressFill');
-      const statusMsg = document.getElementById('statusMsg');
 
       sendBtn.disabled = true;
       pBar.style.display = 'block';
@@ -173,6 +178,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         xhr.send(formData);
       }, 'image/jpeg', 0.9);
+    };
+
+    const toggleColorOrder = () => {
+      fetch('/toggle_color')
+        .then(r => r.text())
+        .then(txt => {
+          statusMsg.style.color = '#38bdf8';
+          statusMsg.innerText = 'Đã chuyển sang hệ màu: ' + txt;
+        });
     };
   </script>
 </body>

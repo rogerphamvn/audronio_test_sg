@@ -14,6 +14,7 @@
 #define TFT_HEIGHT 320
 
 // Màu sắc & Đèn nền
+#define TFT_RGB_ORDER TFT_RGB
 #define TFT_INVERSION_ON
 #define TFT_BL   21
 #define TFT_BACKLIGHT_ON HIGH

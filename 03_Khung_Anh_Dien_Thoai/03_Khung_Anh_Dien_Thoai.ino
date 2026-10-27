@@ -26,6 +26,14 @@ WebServer server(80);
 File uploadFile;
 bool needRedraw = false;
 int currentRotation = 0; // 0: Dọc 240x320
+bool isBGR = false;      // false = Chuẩn RGB, true = Đảo BGR
+
+// Thiết lập thanh ghi MADCTL để đổi chuẩn màu RGB / BGR
+void applyColorOrder() {
+  tft.writecommand(TFT_MADCTL);
+  // Rotation 0: MX là 0x40. Bit 3 là BGR (0x08). Nếu RGB chuẩn: bit 3 = 0.
+  tft.writedata(0x40 | (isBGR ? 0x08 : 0x00));
+}
 
 // Callback cho TJpg_Decoder
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
@@ -36,6 +44,7 @@ bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) 
 
 // Hiển thị mã QR lên màn hình để điện thoại quét
 void drawQRCode(const char* url) {
+  applyColorOrder();
   tft.fillScreen(TFT_BLACK);
 
   // Tiêu đề
@@ -50,15 +59,14 @@ void drawQRCode(const char* url) {
   uint8_t qrcodeData[qrcode_getBufferSize(3)];
   qrcode_initText(&qrcode, qrcodeData, 3, 0, url);
 
-  int scale = 4; // Kích thước mỗi module QR là 4x4 pixel
+  int scale = 4;
   int qrSize = qrcode.size * scale;
   int startX = (240 - qrSize) / 2;
   int startY = 82;
 
-  // Viền trắng bảo vệ mã QR (Quiet zone)
+  // Viền trắng bảo vệ mã QR
   tft.fillRect(startX - 8, startY - 8, qrSize + 16, qrSize + 16, TFT_WHITE);
 
-  // Vẽ từng pixel mã QR
   for (uint8_t y = 0; y < qrcode.size; y++) {
     for (uint8_t x = 0; x < qrcode.size; x++) {
       if (qrcode_getModule(&qrcode, x, y)) {
@@ -82,6 +90,7 @@ void drawQRCode(const char* url) {
 void displayPhoto() {
   if (LittleFS.exists("/photo.jpg")) {
     Serial.println("[TFT] Dang hien thi anh /photo.jpg...");
+    applyColorOrder();
     tft.fillScreen(TFT_BLACK);
     TJpgDec.drawFsJpg(0, 0, "/photo.jpg", LittleFS);
   }
@@ -100,12 +109,13 @@ void setup() {
   tft.init();
   tft.setRotation(currentRotation);
   tft.invertDisplay(true); // Panel CYD normally-black
+  applyColorOrder();       // Áp dụng chuẩn màu RGB
   tft.fillScreen(TFT_BLACK);
 
   // Cấu hình bộ giải mã JPEG
   TJpgDec.setJpgScale(1);
   TJpgDec.setCallback(tft_output);
-  TJpgDec.setSwapBytes(true); // Cần thiết cho TFT_eSPI
+  TJpgDec.setSwapBytes(true); // Đảo byte SPI cho ESP32
 
   // 3. Khởi tạo LittleFS
   if (!LittleFS.begin(true)) {
@@ -170,6 +180,15 @@ void setup() {
     }
   });
 
+  // Đường dẫn đổi hệ màu trực tiếp
+  server.on("/toggle_color", HTTP_GET, []() {
+    isBGR = !isBGR;
+    applyColorOrder();
+    displayPhoto();
+    server.send(200, "text/plain", isBGR ? "BGR (Đảo màu)" : "RGB (Chuẩn)");
+    Serial.printf("[COLOR] Da chuyen he mau sang: %s\n", isBGR ? "BGR" : "RGB");
+  });
+
   // Đường dẫn xoá ảnh và quay lại màn hình QR
   server.on("/reset", HTTP_GET, []() {
     if (LittleFS.exists("/photo.jpg")) {
@@ -187,7 +206,6 @@ void setup() {
 void loop() {
   server.handleClient();
 
-  // Vẽ lại ảnh sau khi tải xong từ web
   if (needRedraw) {
     needRedraw = false;
     displayPhoto();
