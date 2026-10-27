@@ -1,0 +1,13 @@
+# Compiled binaries and build caches
+*.bin
+*.elf
+*.hex
+build/
+.cache/
+__pycache__/
+*.pyc
+
+# IDE and OS files
+.DS_Store
+Thumbs.db
+desktop.ini
