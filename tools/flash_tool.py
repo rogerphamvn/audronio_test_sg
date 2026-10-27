@@ -1,16 +1,16 @@
 import subprocess, time, sys
 
-print("=== ESP32 CYD AUTO-FLASHER (03_Khung_Anh_Dien_Thoai) ===")
+print("=== ESP32 CYD AUTO-FLASHER (04_Khung_Anh_Cam_Ung_Outdoor) ===")
 print("Dang lang nghe cong COM3... Xin hay bam to hop nut tren mach:")
 print("1. Nhan va GIU nut BOOT (nut o canh duoi)")
 print("2. Bam va NHA nut RST (nut o canh tren) 1 lan")
 print("3. NHA nut BOOT ra\n")
 
-build_dir = r"C:\Users\nguye\AppData\Local\arduino\sketches\F79C8217A7A6506C52D03C94B13AEE6A"
-bootloader = f"{build_dir}\\03_Khung_Anh_Dien_Thoai.ino.bootloader.bin"
-partitions = f"{build_dir}\\03_Khung_Anh_Dien_Thoai.ino.partitions.bin"
+build_dir = r"C:\Users\nguye\AppData\Local\arduino\sketches\4A2C3D3BD05B33EC4A6F4F170B594084"
+bootloader = f"{build_dir}\\04_Khung_Anh_Cam_Ung_Outdoor.ino.bootloader.bin"
+partitions = f"{build_dir}\\04_Khung_Anh_Cam_Ung_Outdoor.ino.partitions.bin"
 boot_app0  = f"{build_dir}\\boot_app0.bin"
-app_bin    = f"{build_dir}\\03_Khung_Anh_Dien_Thoai.ino.bin"
+app_bin    = f"{build_dir}\\04_Khung_Anh_Cam_Ung_Outdoor.ino.bin"
 
 cmd = [
     r"C:\Users\nguye\.local\bin\uv.exe", "tool", "run", "esptool",

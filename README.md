@@ -16,9 +16,16 @@ Dự án bao gồm:
    * Hỗ trợ chọn ảnh từ thư viện hoặc chụp ảnh trực tiếp.
    * Xử lý cắt/chỉnh/xoay (Crop/Fit) 240x320 trực tiếp trên trình duyệt điện thoại và truyền qua WiFi trong ~0.5 giây.
    * Tự động lưu ảnh vào bộ nhớ Flash LittleFS (không bị mất khi tắt nguồn).
-4. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
-5. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
-6. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
+4. **Bài 4 - Khung Ảnh Outdoor Cảm Ứng Độc Lập (`04_Khung_Anh_Cam_Ung_Outdoor`):**
+   * Hoạt động 100% ngoài trời chỉ với pin dự phòng, không cần Internet hay Router WiFi.
+   * Chạm cảm ứng vào màn hình để lật qua lại giữa ảnh và màn hình 2 Mã QR.
+   * Hiển thị **2 Mã QR riêng biệt**:
+     * QR 1: Quét để tự động kết nối mạng WiFi do ESP32 phát (`KhungAnh-ESP32`).
+     * QR 2: Quét để mở trang web gửi ảnh (`http://192.168.4.1`).
+   * Giao diện điện thoại cao cấp: Kéo rê ảnh (Pan), thanh trượt thu phóng (Zoom), xoay, đổi chuẩn màu RGB/BGR trực tiếp.
+5. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
+6. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
+7. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
 
 ---
 

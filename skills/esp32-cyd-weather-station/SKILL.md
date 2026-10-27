@@ -141,6 +141,20 @@ Architecture:
    - Decodes and renders directly to the TFT LCD via `TJpg_Decoder` in under 0.5s.
    - Photos persist across power cycles. Includes `/reset` endpoint to return to the QR pairing screen.
 
+### Step 4: Autonomous Outdoor Touch Photo Frame (`04_Khung_Anh_Cam_Ung_Outdoor`)
+Architecture:
+1. **Zero-Internet & Router-Free Portable Operation:**
+   - Operates on portable USB battery power anywhere without Wi-Fi routers or Internet.
+   - Broadcasts its own private Access Point (`KhungAnh-ESP32`, no password) at `192.168.4.1`.
+   - Built-in DNS Captive Portal automatically prompts mobile devices to open the photo portal.
+2. **Interactive Touchscreen (XPT2046 on VSPI):**
+   - Tap screen anywhere to toggle between Full Screen Photo and Dual-QR Setup Screen.
+3. **Dual Step-by-Step QR Display:**
+   - QR 1 (Top): Formatted WiFi payload `WIFI:T:nopass;S:KhungAnh-ESP32;;` for one-tap phone joining.
+   - QR 2 (Bottom): Web link `http://192.168.4.1` to access the photo uploader.
+4. **Enhanced Mobile Studio Controls:**
+   - Touch drag to pan/position subject, zoom slider (1.0x-3.0x), 90-degree rotate, cover/contain fit.
+
 ---
 
 ## 6. Automated Python Flashing Tool (`tools/flash_tool.py`)
