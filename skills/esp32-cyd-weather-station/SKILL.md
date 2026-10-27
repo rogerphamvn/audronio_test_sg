@@ -127,6 +127,20 @@ Architecture:
    - Clock digits overwrite previous values using text background colors (`tft.setTextColor(TFT_YELLOW, COLOR_CARD_BG)`).
    - Weather metrics refresh in the background every 15 minutes.
 
+### Step 3: Smart Photo Frame from Mobile Phone (`03_Khung_Anh_Dien_Thoai`)
+Architecture:
+1. **Local Web Server & Dynamic QR Code Display:**
+   - Hosts a lightweight HTTP Web Server on port 80.
+   - Dynamically draws an on-screen QR Code using `qrcode.h` with the device's local IP (`http://<ip>`).
+2. **Client-Side Canvas Processing (Mobile Browser):**
+   - User scans the QR code with iOS/Android camera, opening the portal in Safari/Chrome.
+   - HTML5 Canvas pre-processes, rotates, zooms, and crops the image to exact 240x320 pixels on the phone.
+   - Compresses to ~20 KB JPEG, preventing ESP32 memory exhaustion from high-resolution phone cameras.
+3. **Fast JPEG Decoding & Persistent Flash Storage:**
+   - ESP32 receives image via HTTP multipart POST and saves to `/photo.jpg` in LittleFS.
+   - Decodes and renders directly to the TFT LCD via `TJpg_Decoder` in under 0.5s.
+   - Photos persist across power cycles. Includes `/reset` endpoint to return to the QR pairing screen.
+
 ---
 
 ## 6. Automated Python Flashing Tool (`tools/flash_tool.py`)

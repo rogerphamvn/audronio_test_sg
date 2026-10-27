@@ -10,9 +10,15 @@ Dự án bao gồm:
    * Đồng bộ thời gian thực Internet NTP (GMT+7).
    * Cập nhật thời tiết trực tiếp: Nhiệt độ (°C), Độ ẩm (%), Lưu lượng mưa (mm) từ Open-Meteo API (không cần API Key).
    * Giao diện Dashboard hiện đại, mượt mà, không nhấp nháy màn hình.
-3. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
-4. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
-5. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
+3. **Bài 3 - Khung Ảnh Thông Minh Từ Điện Thoại (`03_Khung_Anh_Dien_Thoai`):**
+   * Tự động tạo Web Server và hiển thị mã QR trên màn hình CYD.
+   * Dùng Camera điện thoại quét mã QR để mở giao diện Web điều khiển.
+   * Hỗ trợ chọn ảnh từ thư viện hoặc chụp ảnh trực tiếp.
+   * Xử lý cắt/chỉnh/xoay (Crop/Fit) 240x320 trực tiếp trên trình duyệt điện thoại và truyền qua WiFi trong ~0.5 giây.
+   * Tự động lưu ảnh vào bộ nhớ Flash LittleFS (không bị mất khi tắt nguồn).
+4. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
+5. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
+6. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
 
 ---
 

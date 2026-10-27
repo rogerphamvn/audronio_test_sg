@@ -1,15 +1,16 @@
 import subprocess, time, sys
 
-print("=== ESP32 CYD AUTO-FLASHER ===")
+print("=== ESP32 CYD AUTO-FLASHER (03_Khung_Anh_Dien_Thoai) ===")
 print("Dang lang nghe cong COM3... Xin hay bam to hop nut tren mach:")
 print("1. Nhan va GIU nut BOOT (nut o canh duoi)")
 print("2. Bam va NHA nut RST (nut o canh tren) 1 lan")
 print("3. NHA nut BOOT ra\n")
 
-bootloader = r"C:\Users\nguye\AppData\Local\arduino\sketches\9DD851DD6BA8877A3865043BA5AB9C4C\02_Tram_Thoi_Tiet_WiFi.ino.bootloader.bin"
-partitions = r"C:\Users\nguye\AppData\Local\arduino\sketches\9DD851DD6BA8877A3865043BA5AB9C4C\02_Tram_Thoi_Tiet_WiFi.ino.partitions.bin"
-boot_app0  = r"C:\Users\nguye\AppData\Local\arduino\sketches\9DD851DD6BA8877A3865043BA5AB9C4C\boot_app0.bin"
-app_bin    = r"C:\Users\nguye\AppData\Local\arduino\sketches\9DD851DD6BA8877A3865043BA5AB9C4C\02_Tram_Thoi_Tiet_WiFi.ino.bin"
+build_dir = r"C:\Users\nguye\AppData\Local\arduino\sketches\F79C8217A7A6506C52D03C94B13AEE6A"
+bootloader = f"{build_dir}\\03_Khung_Anh_Dien_Thoai.ino.bootloader.bin"
+partitions = f"{build_dir}\\03_Khung_Anh_Dien_Thoai.ino.partitions.bin"
+boot_app0  = f"{build_dir}\\boot_app0.bin"
+app_bin    = f"{build_dir}\\03_Khung_Anh_Dien_Thoai.ino.bin"
 
 cmd = [
     r"C:\Users\nguye\.local\bin\uv.exe", "tool", "run", "esptool",
