@@ -155,6 +155,19 @@ Architecture:
 4. **Enhanced Mobile Studio Controls:**
    - Touch drag to pan/position subject, zoom slider (1.0x-3.0x), 90-degree rotate, cover/contain fit.
 
+### Step 5: Smartphone-Style AOD Standby & Screensaver (`05_Khung_Anh_AOD_Standby`)
+Architecture:
+1. **Smartphone Idle Timeout & Instant Wakeup:**
+   - Configurable idle timeout (10s, 15s, 30s default, 60s, Never).
+   - If untouched for timeout period, transitions from main photo to standby screen.
+   - Touch screen anywhere to immediately wake up, turn on backlight, and return to the main photo.
+2. **Pre-Configurable Standby Modes:**
+   - **Mode 1 - AOD Digital Clock (`clock`):** Sleek, OLED-style Always-On Display on pure black background with large digits (Font 7), seconds ticker, day/date, and auto-time-sync from connected smartphone or NTP.
+   - **Mode 2 - Secondary Screensaver Photo (`photo`):** Separate photo uploader for `/standby.jpg`, allowing distinct active vs. screensaver images.
+   - **Mode 3 - Deep Sleep Backlight Off (`sleep`):** Shuts off backlight (`digitalWrite(21, LOW)`) for power saving; wakes up on touch.
+3. **Persistent Flash Configuration:**
+   - Stores settings in `/config.json` via LittleFS and ArduinoJson 7 so user preferences persist across power cycles.
+
 ---
 
 ## 6. Automated Python Flashing Tool (`tools/flash_tool.py`)

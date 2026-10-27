@@ -23,9 +23,17 @@ Dự án bao gồm:
      * QR 1: Quét để tự động kết nối mạng WiFi do ESP32 phát (`KhungAnh-ESP32`).
      * QR 2: Quét để mở trang web gửi ảnh (`http://192.168.4.1`).
    * Giao diện điện thoại cao cấp: Kéo rê ảnh (Pan), thanh trượt thu phóng (Zoom), xoay, đổi chuẩn màu RGB/BGR trực tiếp.
-5. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
-6. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
-7. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
+5. **Bài 5 - Khung Ảnh & Màn Hình Chờ Điện Thoại AOD (`05_Khung_Anh_AOD_Standby`):**
+   * **Cơ chế Smartphone:** Sau 30 giây (tuỳ chỉnh 10s, 15s, 30s, 60s, Never) không chạm màn hình -> ESP32 tự động chuyển sang Màn hình chờ (Standby / AOD).
+   * **Đánh thức tức thì:** Chạm tay vào màn hình bất cứ lúc nào -> Đèn nền bật sáng và quay lại hiển thị ảnh chính ngay lập tức.
+   * **Tự do Set up kiểu màn hình chờ trước:**
+     * *Kiểu 1:* Đồng hồ số Always-On Display (AOD) nền đen sang trọng, tự đồng bộ giờ điện thoại qua Web / NTP GMT+7.
+     * *Kiểu 2:* Ảnh chờ riêng biệt (tải ảnh screensaver phụ độc lập với ảnh chính).
+     * *Kiểu 3:* Chế độ ngủ tắt màn hình (Deep Sleep Backlight Off), tiết kiệm pin tối đa.
+   * Cấu hình và ảnh lưu bền vững trong LittleFS Flash.
+6. **Cấu hình phần cứng chuẩn (`hardware_config/User_Setup.h`):** Khắc phục lỗi hiển thị đảo màu trên thư viện `TFT_eSPI`.
+7. **Bộ nạp tự động thông minh (`tools/flash_tool.py`):** Lắng nghe và nạp firmware tức thì khi bấm tổ hợp nút bootloader.
+8. **Skill Tái Sử Dụng (`skills/esp32-cyd-weather-station/SKILL.md`):** Tài liệu chuẩn hoá quy trình cho AI và lập trình viên.
 
 ---
 
