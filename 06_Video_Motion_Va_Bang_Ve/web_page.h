@@ -48,7 +48,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     .form-group { margin-bottom: 13px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; color: #38bdf8; margin-bottom: 6px; }
-    .form-group select { width: 100%; padding: 10px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; font-size: 13px; outline: none; }
+    .form-group select, .form-group input[type=text], .form-group input[type=number] { width: 100%; padding: 10px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; font-size: 13px; outline: none; }
     .tip-box { background: #0f172a; border-left: 3px solid #38bdf8; padding: 10px; border-radius: 6px; font-size: 12px; color: #94a3b8; line-height: 1.4; margin-top: 10px; }
 
     .progress-bar { width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 10px; display: none; }
@@ -62,21 +62,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="card">
-    <h1>Khung Ảnh, Video & Bảng Viết</h1>
-    <p class="sub">Hỗ trợ ảnh tĩnh, video motion & viết vẽ bằng bút cảm ứng</p>
+    <h1>Điện Thoại Thu Nhỏ ESP32</h1>
+    <p class="sub">Khung ảnh, Video Motion, Bảng viết tay & Đồng hồ thời tiết</p>
 
     <!-- TABS -->
     <div class="tabs">
       <button class="tab-btn active" id="tabBtn1" onclick="switchTab('main')">🖼️ Ảnh</button>
       <button class="tab-btn" id="tabBtn2" onclick="switchTab('motion')">🎬 Video</button>
       <button class="tab-btn" id="tabBtn3" onclick="switchTab('draw')">✍️ Viết Vẽ</button>
-      <button class="tab-btn" id="tabBtn4" onclick="switchTab('standby')">🕒 Chờ</button>
+      <button class="tab-btn" id="tabBtn4" onclick="switchTab('standby')">🕒 Chờ & Khí</button>
     </div>
 
     <!-- TAB 1: ẢNH CHÍNH -->
     <div class="tab-pane active" id="paneMain">
       <div class="upload-btn-wrapper">
-        <button class="btn-pick">📸 Chọn ảnh từ điện thoại</button>
+        <button class="btn-pick">📸 Chọn ảnh từ thư viện / Chụp ảnh</button>
         <input type="file" id="fileInputMain" accept="image/*">
       </div>
 
@@ -101,36 +101,36 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <!-- TAB 2: VIDEO & MOTION GRAPHIC -->
     <div class="tab-pane" id="paneMotion">
       <div class="form-group">
-        <label>🎬 Tải Video / Motion Graphic (GIF):</label>
+        <label>🎬 Tải Video từ Camera Roll / File GIF:</label>
         <div class="upload-btn-wrapper">
-          <button class="btn-pick" style="background:#8b5cf6;">🎞️ Chọn file GIF / Video ngắn</button>
-          <input type="file" id="fileInputGif" accept=".gif,video/*">
+          <button class="btn-pick" style="background:#8b5cf6;">🎞️ Chọn Video (.mp4 / .mov) hoặc GIF</button>
+          <input type="file" id="fileInputVid" accept="video/*,.gif">
         </div>
-        <div id="gifPreviewBox" style="display:none; text-align:center; margin:10px 0;">
-          <img id="gifPreview" style="max-width:200px; max-height:260px; border-radius:8px; border:1px solid #475569;">
+        <div id="vidPreviewBox" style="display:none; text-align:center; margin:10px 0;">
+          <video id="vidPreview" style="max-width:200px; max-height:260px; border-radius:8px; border:1px solid #475569;" autoplay loop muted playsinline></video>
         </div>
-        <button class="btn-send" id="sendBtnGif" style="display:none;" onclick="uploadGif()">🚀 Gửi Video/GIF lên ESP32</button>
+        <button class="btn-send" id="sendBtnVid" style="display:none;" onclick="processAndUploadVideo()">🚀 Chuyển đổi & Gửi Video lên ESP32</button>
       </div>
 
       <div class="form-group" style="margin-top:16px; border-top:1px solid #334155; padding-top:12px;">
-        <label>✨ Hiệu Ứng Motion Graphic Có Sẵn:</label>
+        <label>✨ Hiệu Ứng Motion Graphic Sẵn Có:</label>
         <div class="grid-2">
           <button class="btn-effect" onclick="setEffect('matrix')">🟢 Mưa Số Matrix</button>
-          <button class="btn-effect" onclick="setEffect('starfield')">🌌 Vũ Trụ Ngàn Sao</button>
-          <button class="btn-effect" onclick="setEffect('wave')">🌈 Sóng Neon Sống Động</button>
-          <button class="btn-effect" onclick="setEffect('file')">▶️ Phát Video Đã Tải</button>
+          <button class="btn-effect" onclick="setEffect('starfield')">🌌 Vũ Trụ 3D</button>
+          <button class="btn-effect" onclick="setEffect('wave')">🌈 Sóng Neon</button>
+          <button class="btn-effect" onclick="setEffect('mjpeg')">▶️ Phát Video Đã Tải</button>
         </div>
       </div>
       <div class="tip-box">
-        💡 <b>Mẹo Video:</b> ESP32 phát mượt mà các file GIF động, sticker chuyển động, anime và motion graphic lặp vô tận (loop)!
+        💡 <b>Tương thích 100%:</b> Trình duyệt sẽ tự động cắt khung hình và tối ưu video 240x320 để ESP32 phát mượt mà không bị giật!
       </div>
     </div>
 
     <!-- TAB 3: BẢNG VIẾT TAY TRÊN ESP32 -->
     <div class="tab-pane" id="paneDraw">
       <div class="tip-box" style="margin-top:0;">
-        ✍️ <b>Bút Cảm Ứng Trên ESP32:</b><br>
-        Màn hình CYD hỗ trợ cảm ứng lực. Bạn có thể dùng <b>bút cảm ứng (Stylus), móng tay hoặc đầu bút nhựa</b> để viết vẽ trực tiếp lên màn hình!
+        ✍️ <b>Bút Cảm Ứng Trên Màn Hình CYD:</b><br>
+        Màn hình hỗ trợ cảm ứng lực. Bạn có thể dùng <b>bút cảm ứng (Stylus), móng tay hoặc đầu bút nhựa</b> để viết vẽ trực tiếp lên màn hình!
       </div>
       
       <button class="btn-action" style="background:#10b981; margin-top:14px;" onclick="openWhiteboard()">🖌️ MỞ BẢNG VIẾT TAY TRÊN ESP32</button>
@@ -138,7 +138,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <button class="btn-action" style="background:#ef4444; margin-top:8px;" onclick="clearSavedNote()">🗑️ XOÁ GHI CHÚ VIẾT TAY</button>
     </div>
 
-    <!-- TAB 4: CÀI ĐẶT MÀN HÌNH CHỜ (AOD) -->
+    <!-- TAB 4: MÀN HÌNH CHỜ SMARTWATCH & THỜI TIẾT -->
     <div class="tab-pane" id="paneStandby">
       <div class="form-group">
         <label>⏱️ Thời gian tự vào chế độ chờ:</label>
@@ -152,18 +152,28 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       </div>
 
       <div class="form-group">
-        <label>✨ Kiểu Màn Hình Chờ (Standby Mode):</label>
+        <label>✨ Kiểu Màn Hình Chờ (Standby):</label>
         <select id="cfgMode">
-          <option value="clock">🕒 Đồng hồ số AOD (Giờ + Ngày)</option>
-          <option value="motion">🎬 Motion Graphic (Matrix / Starfield / GIF)</option>
+          <option value="watch" selected>⌚ Mặt Đồng Hồ Smartwatch Kim & Thời Tiết</option>
+          <option value="motion">🎬 Video Motion / Matrix Rain</option>
           <option value="note">✍️ Ghi chú viết tay bằng bút</option>
-          <option value="photo">🖼️ Ảnh chờ phụ riêng</option>
+          <option value="photo">🖼️ Ảnh tĩnh kỷ niệm</option>
           <option value="sleep">🌙 Tắt màn hình (Chạm là sáng)</option>
         </select>
       </div>
 
+      <div class="form-group" style="border-top:1px solid #334155; padding-top:12px;">
+        <label>🌦️ Cập nhật Thời tiết & Lượng mưa cho Smartwatch:</label>
+        <div class="grid-2">
+          <input type="number" id="inpTemp" placeholder="Nhiệt độ (°C)" value="27">
+          <input type="number" id="inpRain" placeholder="Lượng mưa (mm)" step="0.1" value="0.0">
+        </div>
+        <button class="btn-action" style="background:#059669; margin-top:8px;" onclick="syncWeather()">🌤️ Đồng Bộ Thời Tiết Sang ESP32</button>
+      </div>
+
       <button class="btn-send" style="display:block; margin-top:14px;" onclick="saveConfig()">💾 Lưu Cài Đặt Standby</button>
       <button class="btn-sec" style="width:100%; margin-top:6px;" onclick="toggleColorOrder()">🎨 Đổi hệ màu RGB / BGR</button>
+      <button class="btn-action" style="background:#4f46e5; margin-top:6px;" onclick="showWatchNow()">⌚ Xem Ngay Mặt Đồng Hồ Smartwatch</button>
     </div>
 
     <!-- TIẾN TRÌNH & THÔNG BÁO -->
@@ -177,10 +187,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const state = {
       main: { img: new Image(), rot: 0, fit: 'cover', zoom: 1.0, panX: 0, panY: 0, isDrag: false, sX: 0, sY: 0 }
     };
-    let selectedGifBlob = null;
+    let selectedVideoFile = null;
     const TARGET_W = 240;
     const TARGET_H = 320;
     const statusMsg = document.getElementById('statusMsg');
+    const pBar = document.getElementById('progressBar');
+    const pFill = document.getElementById('progressFill');
 
     const switchTab = (tab) => {
       const tabs = ['main', 'motion', 'draw', 'standby'];
@@ -247,9 +259,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     const uploadImg = (key) => {
       const sendBtn = document.getElementById('sendBtnMain');
-      const pBar = document.getElementById('progressBar');
-      const pFill = document.getElementById('progressFill');
-
       sendBtn.disabled = true;
       pBar.style.display = 'block';
       pFill.style.width = '20%';
@@ -283,66 +292,140 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }, 'image/jpeg', 0.9);
     };
 
-    // Chọn & Upload GIF/Video
-    document.getElementById('fileInputGif').addEventListener('change', (e) => {
+    // --- XỬ LÝ VIDEO & GIF CHUYỂN ĐỔI MJPEG ---
+    document.getElementById('fileInputVid').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      selectedGifBlob = file;
+      selectedVideoFile = file;
 
-      const previewBox = document.getElementById('gifPreviewBox');
-      const previewImg = document.getElementById('gifPreview');
-      const sendBtnGif = document.getElementById('sendBtnGif');
+      const vidPreview = document.getElementById('vidPreview');
+      const vidBox = document.getElementById('vidPreviewBox');
+      const sendBtn = document.getElementById('sendBtnVid');
 
       if (file.type.includes('gif')) {
-        previewImg.src = URL.createObjectURL(file);
-        previewBox.style.display = 'block';
-        sendBtnGif.style.display = 'block';
+        vidBox.style.display = 'none';
+        sendBtn.style.display = 'block';
         statusMsg.style.color = '#38bdf8';
-        statusMsg.innerText = 'Đã chọn GIF (' + Math.round(file.size/1024) + ' KB)';
+        statusMsg.innerText = 'Đã chọn ảnh GIF (' + Math.round(file.size/1024) + ' KB)';
       } else {
-        // File video khác: gửi trực tiếp
-        previewBox.style.display = 'none';
-        sendBtnGif.style.display = 'block';
+        vidPreview.src = URL.createObjectURL(file);
+        vidBox.style.display = 'block';
+        sendBtn.style.display = 'block';
         statusMsg.style.color = '#38bdf8';
-        statusMsg.innerText = 'Đã chọn file: ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+        statusMsg.innerText = 'Đã chọn Video: ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
       }
     });
 
-    const uploadGif = () => {
-      if (!selectedGifBlob) return;
-      const sendBtn = document.getElementById('sendBtnGif');
-      const pBar = document.getElementById('progressBar');
-      const pFill = document.getElementById('progressFill');
-
+    const processAndUploadVideo = () => {
+      if (!selectedVideoFile) return;
+      const sendBtn = document.getElementById('sendBtnVid');
       sendBtn.disabled = true;
       pBar.style.display = 'block';
       pFill.style.width = '10%';
-      statusMsg.innerText = 'Đang tải file lên ESP32...';
 
-      const formData = new FormData();
-      formData.append('file', selectedGifBlob, 'motion.gif');
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/upload_gif', true);
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) pFill.style.width = Math.round((e.loaded / e.total) * 100) + '%';
-      };
-      xhr.onload = () => {
-        sendBtn.disabled = false;
-        if (xhr.status === 200) {
-          pFill.style.width = '100%';
+      // Nếu là file GIF: Gửi trực tiếp
+      if (selectedVideoFile.type.includes('gif') || selectedVideoFile.name.toLowerCase().endsWith('.gif')) {
+        statusMsg.innerText = 'Đang gửi file GIF lên ESP32...';
+        const formData = new FormData();
+        formData.append('file', selectedVideoFile, 'motion.gif');
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload_gif', true);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) pFill.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+        };
+        xhr.onload = () => {
+          sendBtn.disabled = false;
           statusMsg.style.color = '#10b981';
-          statusMsg.innerText = '✅ Đã tải xong! ESP32 đang phát motion graphic!';
-        } else {
-          statusMsg.style.color = '#ef4444';
-          statusMsg.innerText = '❌ Lỗi tải: ' + xhr.status;
-        }
+          statusMsg.innerText = '✅ Đã tải xong! ESP32 đang phát GIF!';
+        };
+        xhr.send(formData);
+        return;
+      }
+
+      // Nếu là Video (MP4/MOV/WebM): Trích xuất 30 frames thành MJPEG
+      statusMsg.innerText = 'Đang trích xuất khung hình video sang 240x320...';
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.src = URL.createObjectURL(selectedVideoFile);
+
+      video.onloadedmetadata = () => {
+        const duration = Math.min(video.duration || 3, 3.5);
+        const fps = 10;
+        const totalFrames = Math.max(10, Math.floor(duration * fps));
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 240;
+        tempCanvas.height = 320;
+        const tempCtx = tempCanvas.getContext('2d');
+        const frameBlobs = [];
+        let cur = 0;
+
+        const captureFrame = () => {
+          if (cur >= totalFrames) {
+            statusMsg.innerText = 'Đang đóng gói và gửi ' + frameBlobs.length + ' khung hình...';
+            pFill.style.width = '75%';
+            const mjpegBlob = new Blob(frameBlobs, { type: 'video/x-motion-jpeg' });
+            
+            const formData = new FormData();
+            formData.append('file', mjpegBlob, 'motion.mjpg');
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload_mjpeg', true);
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) pFill.style.width = 75 + Math.round((e.loaded / e.total) * 25) + '%';
+            };
+            xhr.onload = () => {
+              sendBtn.disabled = false;
+              if (xhr.status === 200) {
+                pFill.style.width = '100%';
+                statusMsg.style.color = '#10b981';
+                statusMsg.innerText = '✅ Video đã được nạp và đang phát mượt mà trên ESP32!';
+              } else {
+                statusMsg.style.color = '#ef4444';
+                statusMsg.innerText = '❌ Lỗi gửi MJPEG: ' + xhr.status;
+              }
+            };
+            xhr.onerror = () => {
+              sendBtn.disabled = false;
+              statusMsg.style.color = '#ef4444';
+              statusMsg.innerText = '❌ Mất kết nối tới ESP32!';
+            };
+            xhr.send(formData);
+            return;
+          }
+
+          video.currentTime = (cur / fps);
+        };
+
+        video.onseeked = () => {
+          let vw = video.videoWidth || 240;
+          let vh = video.videoHeight || 320;
+          let scale = Math.max(240 / vw, 320 / vh);
+          let sw = vw * scale;
+          let sh = vh * scale;
+          let dx = (240 - sw) / 2;
+          let dy = (320 - sh) / 2;
+
+          tempCtx.fillStyle = '#000';
+          tempCtx.fillRect(0, 0, 240, 320);
+          tempCtx.drawImage(video, dx, dy, sw, sh);
+
+          tempCanvas.toBlob((blob) => {
+            frameBlobs.push(blob);
+            cur++;
+            pFill.style.width = Math.round(10 + (cur / totalFrames) * 65) + '%';
+            statusMsg.innerText = 'Đang tối ưu frame ' + cur + '/' + totalFrames + '...';
+            captureFrame();
+          }, 'image/jpeg', 0.65);
+        };
+
+        video.currentTime = 0;
       };
-      xhr.onerror = () => {
+
+      video.onerror = () => {
         sendBtn.disabled = false;
         statusMsg.style.color = '#ef4444';
-        statusMsg.innerText = '❌ Lỗi kết nối tới ESP32!';
+        statusMsg.innerText = '❌ Lỗi đọc video trên điện thoại!';
       };
-      xhr.send(formData);
     };
 
     const setEffect = (eff) => {
@@ -359,7 +442,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .then(r => r.text())
         .then(res => {
           statusMsg.style.color = '#10b981';
-          statusMsg.innerText = '✅ Đã mở bảng vẽ trên màn hình ESP32! Hãy dùng bút viết.';
+          statusMsg.innerText = '✅ Đã mở bảng vẽ trên màn hình ESP32! Dùng bút viết nhé.';
         });
     };
 
@@ -383,6 +466,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
     };
 
+    const syncWeather = () => {
+      const temp = document.getElementById('inpTemp').value;
+      const rain = document.getElementById('inpRain').value;
+      fetch('/sync_weather?temp=' + temp + '&rain=' + rain)
+        .then(r => r.text())
+        .then(res => {
+          statusMsg.style.color = '#10b981';
+          statusMsg.innerText = '✅ Đã đồng bộ: ' + temp + '°C, ' + rain + 'mm lên Smartwatch!';
+        });
+    };
+
     const saveConfig = () => {
       const timeout = document.getElementById('cfgTimeout').value;
       const mode = document.getElementById('cfgMode').value;
@@ -401,6 +495,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .then(txt => {
           statusMsg.style.color = '#38bdf8';
           statusMsg.innerText = 'Hệ màu: ' + txt;
+        });
+    };
+
+    const showWatchNow = () => {
+      fetch('/show_watch')
+        .then(r => r.text())
+        .then(res => {
+          statusMsg.style.color = '#10b981';
+          statusMsg.innerText = '✅ ' + res;
         });
     };
 

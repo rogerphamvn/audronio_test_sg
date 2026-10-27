@@ -1,20 +1,8 @@
 /*
  * =====================================================================
- * DỰ ÁN 06: KHUNG ẢNH, VIDEO/MOTION GRAPHIC & BẢNG VIẾT TAY BẰNG BÚT CẢM ỨNG
+ * DỰ ÁN 06: ĐIỆN THOẠI THU NHỎ ESP32 CYD
+ * KHUNG ẢNH, VIDEO MJPEG/GIF, BẢNG VIẾT TAY & ĐỒNG HỒ SMARTWATCH THỜI TIẾT
  * ĐỊA CHỈ: D:\ESP32\06_Video_Motion_Va_Bang_Ve\06_Video_Motion_Va_Bang_Ve.ino
- * =====================================================================
- * Tính năng đột phá:
- * 1. PHÁT VIDEO & MOTION GRAPHIC TỪ ĐIỆN THOẠI:
- *    - Tải và phát ảnh động GIF, motion graphic, sticker chuyển động, anime mượt mà 20-30 fps.
- *    - Tích hợp 3 hiệu ứng đồ họa đỉnh cao: Ma trận Matrix số rơi, Vũ trụ ngàn sao 3D Starfield, Sóng âm neon.
- * 2. BẢNG VIẾT TAY TỰ VẼ TRỰC TIẾP TRÊN MÀN HÌNH BẰNG BÚT CẢM ỨNG (STYLUS):
- *    - Tận dụng cảm ứng lực XPT2046 siêu nhạy với bút stylus / móng tay / que nhựa.
- *    - Bảng màu: Trắng, Vàng, Xanh lá, Xanh dương, Đỏ, Tẩy xoá.
- *    - Nét viết liền mạch, tròn đều, mượt mà như viết trên giấy thật.
- *    - Lưu chữ viết/hình vẽ thành ghi chú (Note) vĩnh viễn trong Flash, có thể đặt làm màn hình chính hoặc màn hình chờ!
- * 3. CHẾ ĐỘ CHỜ THÔNG MINH (AOD STANDBY):
- *    - Sau 30s không chạm -> Tự vào màn hình chờ (Đồng hồ / Video / Ghi chú viết tay / Ảnh phụ / Tắt màn).
- *    - Chạm tay vào màn hình -> Lập tức thức giấc về ảnh chính!
  * =====================================================================
  */
 
@@ -55,36 +43,43 @@ TFT_eSPI tft = TFT_eSPI();
 WebServer server(80);
 DNSServer dnsServer;
 
-// Animated GIF Player
+// --- TRẠNG THÁI ỨNG DỤNG (MINI SMARTPHONE) ---
+enum AppState {
+  STATE_STANDBY_WATCH,  // Màn hình chờ Smartwatch Chronograph (Hình 2)
+  STATE_HOME_APPS,      // Màn hình chính 4 App Icons như Smartphone
+  STATE_MAIN_PHOTO,     // Xem ảnh toàn màn hình
+  STATE_WHITEBOARD,     // Bảng viết tay bằng bút cảm ứng
+  STATE_MOTION,         // Phát Video MP4/MJPEG / GIF / Matrix Rain
+  STATE_QR              // 2 Mã QR kết nối Wi-Fi & Web
+};
+AppState currentState = STATE_STANDBY_WATCH;
+
+// Cấu hình
+int cfgTimeout = 30;           // Giây chờ (10, 15, 30, 60, 0 = tắt)
+String cfgMode = "watch";      // "watch", "motion", "note", "photo", "sleep"
+String motionMode = "mjpeg";   // "mjpeg", "gif", "matrix", "starfield", "wave"
+bool isBGR = false;
+bool backlightOn = true;
+
+// Thời tiết hiển thị trên Smartwatch
+float currentTemp = 27.0;
+float currentRain = 0.0;
+
+File uploadFile;
+File mjpegFile;
+uint8_t mjpegBuf[12288]; // 12KB buffer cho 1 frame JPEG
+
 AnimatedGIF gif;
 File gifFile;
 bool gifPlaying = false;
 
-// Trạng thái ứng dụng
-enum AppState {
-  STATE_MAIN_PHOTO,
-  STATE_STANDBY,
-  STATE_QR,
-  STATE_WHITEBOARD,
-  STATE_MOTION,
-  STATE_NOTE_VIEW
-};
-AppState currentState = STATE_MAIN_PHOTO;
-
-// Cấu hình
-int cfgTimeout = 30;           // Giây chờ (10, 15, 30, 60, 0 = tắt)
-String cfgMode = "clock";      // "clock", "motion", "note", "photo", "sleep"
-String motionMode = "file";    // "file", "matrix", "starfield", "wave"
-bool isBGR = false;
-bool backlightOn = true;
-
-File uploadFile;
-bool needRedrawMain = false;
-bool needRedrawMotion = false;
 unsigned long lastTouchTime = 0;
 unsigned long lastActivityTime = 0;
 unsigned long lastClockDraw = 0;
-int lastDrawnSecond = -1;
+unsigned long lastMjpegFrameTime = 0;
+
+// Bộ nhớ góc kim đồng hồ cũ để xoá flicker-free
+float oldHourAngle = -1, oldMinAngle = -1, oldSecAngle = -1;
 
 // --- DỮ LIỆU BẢNG VIẾT TAY (WHITEBOARD) ---
 const uint16_t PALETTE[] = { TFT_WHITE, TFT_YELLOW, TFT_GREEN, TFT_CYAN, TFT_RED, TFT_BLACK };
@@ -136,21 +131,15 @@ void * GIFOpenFile(const char *fname, int32_t *pSize) {
   }
   return NULL;
 }
-
-void GIFCloseFile(void *pHandle) {
-  if (gifFile) gifFile.close();
-}
-
+void GIFCloseFile(void *pHandle) { if (gifFile) gifFile.close(); }
 int32_t GIFReadFile(GIFFILE *pFile, uint8_t *pBuf, int32_t iLen) {
   if (!gifFile) return 0;
   return gifFile.read(pBuf, iLen);
 }
-
 int32_t GIFSeekFile(GIFFILE *pFile, int32_t iPosition) {
   if (!gifFile) return 0;
   return gifFile.seek(iPosition);
 }
-
 void GIFDraw(GIFDRAW *pDraw) {
   uint8_t *s = pDraw->pPixels;
   uint16_t *usPalette = pDraw->pPalette;
@@ -162,9 +151,7 @@ void GIFDraw(GIFDRAW *pDraw) {
   uint16_t lineBuf[240];
   int count = (iWidth > 240) ? 240 : iWidth;
   if (!pDraw->ucHasTransparency) {
-    for (int i = 0; i < count; i++) {
-      lineBuf[i] = usPalette[s[i]];
-    }
+    for (int i = 0; i < count; i++) lineBuf[i] = usPalette[s[i]];
     tft.pushImage(pDraw->iX, y, count, 1, lineBuf);
   } else {
     uint8_t ucTransparent = pDraw->ucTransparent;
@@ -181,13 +168,11 @@ void GIFDraw(GIFDRAW *pDraw) {
         }
       }
     }
-    if (runStart >= 0) {
-      tft.pushImage(pDraw->iX + runStart, y, runLen, 1, lineBuf);
-    }
+    if (runStart >= 0) tft.pushImage(pDraw->iX + runStart, y, runLen, 1, lineBuf);
   }
 }
 
-// Đọc cấu hình từ LittleFS
+// Đọc & lưu cấu hình LittleFS
 void loadConfig() {
   if (LittleFS.exists("/config.json")) {
     File f = LittleFS.open("/config.json", "r");
@@ -199,7 +184,8 @@ void loadConfig() {
         if (doc["mode"].is<const char*>()) cfgMode = doc["mode"].as<String>();
         if (doc["motion"].is<const char*>()) motionMode = doc["motion"].as<String>();
         if (doc["is_bgr"].is<bool>()) isBGR = doc["is_bgr"].as<bool>();
-        Serial.printf("[CONFIG] Timeout=%ds, Mode=%s, Motion=%s, BGR=%d\n", cfgTimeout, cfgMode.c_str(), motionMode.c_str(), isBGR);
+        if (doc["temp"].is<float>()) currentTemp = doc["temp"].as<float>();
+        if (doc["rain"].is<float>()) currentRain = doc["rain"].as<float>();
       }
       f.close();
     }
@@ -212,33 +198,16 @@ void saveConfig() {
   doc["mode"] = cfgMode;
   doc["motion"] = motionMode;
   doc["is_bgr"] = isBGR;
+  doc["temp"] = currentTemp;
+  doc["rain"] = currentRain;
   File f = LittleFS.open("/config.json", "w");
   if (f) {
     serializeJson(doc, f);
     f.close();
-    Serial.println("[CONFIG] Da luu config.json thanh cong!");
   }
 }
 
-// Vẽ mã QR
-void renderQR(const char* data, int startX, int startY, int scale) {
-  QRCode qrcode;
-  uint8_t qrcodeData[qrcode_getBufferSize(3)];
-  qrcode_initText(&qrcode, qrcodeData, 3, 0, data);
-
-  int qrSize = qrcode.size * scale;
-  tft.fillRect(startX - 4, startY - 4, qrSize + 8, qrSize + 8, TFT_WHITE);
-
-  for (uint8_t y = 0; y < qrcode.size; y++) {
-    for (uint8_t x = 0; x < qrcode.size; x++) {
-      if (qrcode_getModule(&qrcode, x, y)) {
-        tft.fillRect(startX + (x * scale), startY + (y * scale), scale, scale, TFT_BLACK);
-      }
-    }
-  }
-}
-
-// Chuyển đổi toạ độ cảm ứng sang toạ độ màn hình 240x320
+// Chuyển toạ độ cảm ứng XPT2046 sang màn hình 240x320
 int touchToScreenX(int rawX) {
   int x = map(rawX, 300, 3800, 0, 240);
   return constrain(x, 0, 239);
@@ -248,92 +217,248 @@ int touchToScreenY(int rawY) {
   return constrain(y, 0, 319);
 }
 
-// Giao diện 2 Mã QR kết nối & Menu tính năng
-void drawTwoQRScreen() {
-  gifPlaying = false;
-  setBacklight(true);
-  applyColorOrder();
-  tft.fillScreen(0x0841); // Nền xanh đen đậm
-
-  // Tiêu đề
-  tft.fillRect(0, 0, 240, 26, 0x10A2);
-  tft.setTextColor(TFT_YELLOW, 0x10A2);
-  tft.drawCentreString("KET NOI VA MENU DIEU KHIEN", 120, 5, 2);
-
-  // Khối Bước 1: WiFi riêng
-  tft.fillRoundRect(6, 30, 228, 105, 6, 0x10A2);
-  tft.drawRoundRect(6, 30, 228, 105, 6, TFT_CYAN);
-  renderQR("WIFI:T:nopass;S:KhungAnh-ESP32;;", 14, 38, 3);
-  tft.setTextColor(TFT_CYAN, 0x10A2);
-  tft.drawString("BUOC 1:", 112, 38, 2);
-  tft.setTextColor(TFT_WHITE, 0x10A2);
-  tft.drawString("Vao Wi-Fi:", 112, 56, 2);
-  tft.setTextColor(TFT_GREEN, 0x10A2);
-  tft.drawString("KhungAnh-ESP32", 112, 74, 2);
-  tft.setTextColor(TFT_LIGHTGREY, 0x10A2);
-  tft.drawString("(Khong mat khau)", 112, 94, 1);
-
-  // Khối Bước 2: Mở Web
-  tft.fillRoundRect(6, 140, 228, 105, 6, 0x10A2);
-  tft.drawRoundRect(6, 140, 228, 105, 6, 0xFD20);
-  renderQR("http://192.168.4.1", 14, 148, 3);
-  tft.setTextColor(0xFD20, 0x10A2);
-  tft.drawString("BUOC 2:", 112, 148, 2);
-  tft.setTextColor(TFT_WHITE, 0x10A2);
-  tft.drawString("Mo trinh duyet:", 112, 166, 2);
-  tft.setTextColor(TFT_YELLOW, 0x10A2);
-  tft.drawString("192.168.4.1", 112, 186, 2);
-  tft.setTextColor(TFT_LIGHTGREY, 0x10A2);
-  tft.drawString("Gui anh/video/ve", 112, 206, 2);
-
-  // 3 NÚT CHẠM CẢM ỨNG Ở ĐÁY
-  // Nút 1: Xem Ảnh (X: 6 -> 78)
-  tft.fillRoundRect(6, 252, 72, 62, 5, 0x0320);
-  tft.drawRoundRect(6, 252, 72, 62, 5, TFT_GREEN);
-  tft.setTextColor(TFT_GREEN, 0x0320);
-  tft.drawCentreString("XEM", 42, 264, 2);
-  tft.drawCentreString("ANH", 42, 284, 2);
-
-  // Nút 2: Bảng Viết Tay (X: 84 -> 156)
-  tft.fillRoundRect(84, 252, 72, 62, 5, 0x028A);
-  tft.drawRoundRect(84, 252, 72, 62, 5, TFT_CYAN);
-  tft.setTextColor(TFT_CYAN, 0x028A);
-  tft.drawCentreString("VIET", 120, 264, 2);
-  tft.drawCentreString("TAY", 120, 284, 2);
-
-  // Nút 3: Video Motion (X: 162 -> 234)
-  tft.fillRoundRect(162, 252, 72, 62, 5, 0x4808);
-  tft.drawRoundRect(162, 252, 72, 62, 5, 0xFD20);
-  tft.setTextColor(0xFD20, 0x4808);
-  tft.drawCentreString("VIDEO", 198, 264, 2);
-  tft.drawCentreString("MOTION", 198, 284, 2);
-
-  currentState = STATE_QR;
-}
-
-// Hiển thị ảnh chính
-void displayMainPhoto() {
-  gifPlaying = false;
-  setBacklight(true);
-  if (LittleFS.exists("/photo.jpg")) {
-    Serial.println("[TFT] Hien thi anh chinh /photo.jpg");
-    applyColorOrder();
-    tft.fillScreen(TFT_BLACK);
-    TJpgDec.drawFsJpg(0, 0, "/photo.jpg", LittleFS);
-    currentState = STATE_MAIN_PHOTO;
-  } else {
-    drawTwoQRScreen();
+// Vẽ mã QR
+void renderQR(const char* data, int startX, int startY, int scale) {
+  QRCode qrcode;
+  uint8_t qrcodeData[qrcode_getBufferSize(3)];
+  qrcode_initText(&qrcode, qrcodeData, 3, 0, data);
+  int qrSize = qrcode.size * scale;
+  tft.fillRect(startX - 4, startY - 4, qrSize + 8, qrSize + 8, TFT_WHITE);
+  for (uint8_t y = 0; y < qrcode.size; y++) {
+    for (uint8_t x = 0; x < qrcode.size; x++) {
+      if (qrcode_getModule(&qrcode, x, y)) {
+        tft.fillRect(startX + (x * scale), startY + (y * scale), scale, scale, TFT_BLACK);
+      }
+    }
   }
 }
 
-// --- VẼ BẢNG VIẾT TAY (WHITEBOARD STUDIO) ---
-void drawWhiteboardUI() {
-  gifPlaying = false;
-  setBacklight(true);
+// =====================================================================
+// 1. MẶT ĐỒNG HỒ SMARTWATCH KIM & THỜI TIẾT (GIỐNG HÌNH 2)
+// =====================================================================
+void drawWatchFaceStatic() {
   applyColorOrder();
   tft.fillScreen(TFT_BLACK);
 
-  // 1. THANH BẢNG MÀU TRÊN CÙNG (Y: 0 -> 40)
+  int cx = 120, cy = 135;
+  int r = 104;
+
+  // 1. Vành ngoài đồng hồ (Bezel)
+  tft.drawCircle(cx, cy, r + 1, 0x2965);
+  tft.drawCircle(cx, cy, r, 0x18E3);
+
+  // Vạch chia 60 phút
+  for (int i = 0; i < 60; i++) {
+    float a = (i * 6 - 90) * 0.0174532925;
+    int x1 = cx + cos(a) * (r - (i % 5 == 0 ? 8 : 4));
+    int y1 = cy + sin(a) * (r - (i % 5 == 0 ? 8 : 4));
+    int x2 = cx + cos(a) * (r - 1);
+    int y2 = cy + sin(a) * (r - 1);
+    uint16_t tickCol = (i % 5 == 0) ? ((i % 15 == 0) ? TFT_CYAN : TFT_WHITE) : 0x4A69;
+    tft.drawLine(x1, y1, x2, y2, tickCol);
+  }
+
+  // 2. Cung tròn trên đỉnh: Pin / Năng lượng (⚡ 86% / 100%)
+  for (int a = -135; a <= -45; a += 3) {
+    float rad = a * 0.0174532925;
+    tft.drawPixel(cx + cos(rad) * (r - 12), cy + sin(rad) * (r - 12), 0x05BF);
+    tft.drawPixel(cx + cos(rad) * (r - 13), cy + sin(rad) * (r - 13), 0x05BF);
+  }
+  tft.setTextColor(0x05BF, TFT_BLACK);
+  tft.drawCentreString("PWR 100%", cx, cy - 82, 1);
+
+  // 3. Widget Ngày tháng (Góc trên trái)
+  time_t now = time(nullptr);
+  struct tm* t = localtime(&now);
+  const char* wdays[] = {"CN", "T.HAI", "T.BA", "T.TU", "T.NAM", "T.SAU", "T.BAY"};
+  char dateBuf[16];
+  snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d", t->tm_mon + 1, t->tm_mday);
+  tft.setTextColor(0x9CD3, TFT_BLACK);
+  tft.drawCentreString(dateBuf, cx - 48, cy - 36, 2);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString(wdays[t->tm_wday % 7], cx - 48, cy - 20, 2);
+
+  // 4. Widget Thời tiết & Mưa (Góc dưới trái)
+  // Vẽ biểu tượng đám mây nhỏ
+  tft.drawCircle(cx - 52, cy + 22, 5, 0x7BEF);
+  tft.drawCircle(cx - 44, cy + 20, 7, 0x7BEF);
+  tft.drawCircle(cx - 38, cy + 23, 4, 0x7BEF);
+  tft.drawFastHLine(cx - 52, cy + 27, 16, 0x7BEF);
+
+  char tempBuf[12];
+  snprintf(tempBuf, sizeof(tempBuf), "%.0f C", currentTemp);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString(tempBuf, cx - 46, cy + 32, 2);
+
+  char rainBuf[12];
+  snprintf(rainBuf, sizeof(rainBuf), "%.1fmm", currentRain);
+  tft.setTextColor(0x05BF, TFT_BLACK);
+  tft.drawCentreString(rainBuf, cx - 46, cy + 48, 1);
+
+  // 5. Logo thương hiệu bên phải (như chữ NXP trên hình 2)
+  tft.setTextColor(0x07E0, TFT_BLACK);
+  tft.drawCentreString("ESP", cx + 50, cy - 6, 2);
+  tft.setTextColor(0xFD20, TFT_BLACK);
+  tft.drawCentreString("32", cx + 68, cy - 6, 2);
+
+  // 6. Cung tròn dưới đáy: Hoạt động / Flame
+  for (int a = 45; a <= 135; a += 3) {
+    float rad = a * 0.0174532925;
+    tft.drawPixel(cx + cos(rad) * (r - 12), cy + sin(rad) * (r - 12), 0xFD20);
+    tft.drawPixel(cx + cos(rad) * (r - 13), cy + sin(rad) * (r - 13), 0xFD20);
+  }
+  tft.setTextColor(0xFD20, TFT_BLACK);
+  tft.drawCentreString("LIVE 1526", cx, cy + 68, 1);
+
+  // 7. Dock phía dưới đáy màn hình (Y: 260 -> 318)
+  tft.fillRoundRect(8, 260, 224, 52, 8, 0x10A2);
+  tft.drawRoundRect(8, 260, 224, 52, 8, 0x2965);
+
+  char digiBuf[16];
+  snprintf(digiBuf, sizeof(digiBuf), "%02d:%02d:%02d", t->tm_hour, t->tm_min, t->tm_sec);
+  tft.setTextColor(TFT_YELLOW, 0x10A2);
+  tft.drawCentreString(digiBuf, 120, 266, 4);
+
+  tft.setTextColor(TFT_GREEN, 0x10A2);
+  tft.drawCentreString("[ CHAM DE MO KHOA ]", 120, 296, 2);
+
+  oldHourAngle = -1;
+  oldMinAngle = -1;
+  oldSecAngle = -1;
+}
+
+// Vẽ một thanh kim rỗng thể thao (Hollow Sport Hand)
+void drawSportHand(int cx, int cy, float angleDeg, int length, int width, uint16_t color) {
+  float rad = (angleDeg - 90) * 0.0174532925;
+  float perp = rad + 1.5707963;
+  int cosP = cos(perp) * width / 2;
+  int sinP = sin(perp) * width / 2;
+  int tipX = cx + cos(rad) * length;
+  int tipY = cy + sin(rad) * length;
+
+  tft.drawLine(cx + cosP, cy + sinP, tipX + cosP, tipY + sinP, color);
+  tft.drawLine(cx - cosP, cy - sinP, tipX - cosP, tipY - sinP, color);
+  tft.drawLine(tipX - cosP, tipY - sinP, tipX + cosP, tipY + sinP, color);
+  tft.drawLine(cx - cosP, cy - sinP, cx + cosP, cy + sinP, color);
+}
+
+// Cập nhật kim đồng hồ chuyển động mượt mà không chớp giật
+void updateWatchHands() {
+  time_t now = time(nullptr);
+  struct tm* t = localtime(&now);
+
+  int cx = 120, cy = 135;
+  float sAngle = t->tm_sec * 6.0;
+  float mAngle = t->tm_min * 6.0 + t->tm_sec * 0.1;
+  float hAngle = (t->tm_hour % 12) * 30.0 + t->tm_min * 0.5;
+
+  if (sAngle == oldSecAngle) return;
+
+  // 1. XOÁ CÁC KIM CŨ BẰNG MÀU ĐEN (FLICKER-FREE)
+  if (oldSecAngle >= 0) {
+    float sRad = (oldSecAngle - 90) * 0.0174532925;
+    tft.drawLine(cx - cos(sRad) * 14, cy - sin(sRad) * 14, cx + cos(sRad) * 82, cy + sin(sRad) * 82, TFT_BLACK);
+  }
+  if (oldMinAngle >= 0) {
+    drawSportHand(cx, cy, oldMinAngle, 68, 5, TFT_BLACK);
+  }
+  if (oldHourAngle >= 0) {
+    drawSportHand(cx, cy, oldHourAngle, 45, 6, TFT_BLACK);
+  }
+
+  // 2. VẼ LẠI KIM MỚI
+  // Kim Giờ: Vàng Cam (rỗng ở giữa)
+  drawSportHand(cx, cy, hAngle, 45, 6, 0xFD20);
+
+  // Kim Phút: Xanh Dương Neon (rỗng ở giữa)
+  drawSportHand(cx, cy, mAngle, 68, 5, 0x05BF);
+
+  // Kim Giây: Xanh Lá Neon (thanh mảnh)
+  float sRad = (sAngle - 90) * 0.0174532925;
+  tft.drawLine(cx - cos(sRad) * 14, cy - sin(sRad) * 14, cx + cos(sRad) * 82, cy + sin(sRad) * 82, 0x07E0);
+
+  // Tâm trục (Center Cap)
+  tft.fillCircle(cx, cy, 4, 0x07E0);
+  tft.fillCircle(cx, cy, 2, TFT_BLACK);
+
+  // Cập nhật đồng hồ số ở dock
+  char digiBuf[16];
+  snprintf(digiBuf, sizeof(digiBuf), "%02d:%02d:%02d", t->tm_hour, t->tm_min, t->tm_sec);
+  tft.setTextColor(TFT_YELLOW, 0x10A2);
+  tft.drawCentreString(digiBuf, 120, 266, 4);
+
+  oldHourAngle = hAngle;
+  oldMinAngle = mAngle;
+  oldSecAngle = sAngle;
+}
+
+// =====================================================================
+// 2. MÀN HÌNH CHÍNH SMARTPHONE (HOME APPS LAUNCHER)
+// =====================================================================
+void drawHomeScreen() {
+  gifPlaying = false;
+  setBacklight(true);
+  applyColorOrder();
+  tft.fillScreen(0x0841); // Nền xanh đen hiện đại
+
+  // Thanh trạng thái trên cùng (Status Bar)
+  tft.fillRect(0, 0, 240, 24, 0x10A2);
+  tft.setTextColor(TFT_CYAN, 0x10A2);
+  tft.drawString("KhungAnh-ESP32", 8, 4, 2);
+  tft.setTextColor(TFT_GREEN, 0x10A2);
+  tft.drawRightString("100%", 232, 4, 2);
+
+  // Tiêu đề
+  tft.setTextColor(TFT_WHITE, 0x0841);
+  tft.drawCentreString("SMARTPHONE MINI", 120, 32, 2);
+  tft.drawFastHLine(20, 52, 200, 0x2104);
+
+  // 4 ICON ỨNG DỤNG LỚN (LƯỚI 2x2)
+  // App 1: Khung Ảnh (X: 16, Y: 60)
+  tft.fillRoundRect(16, 60, 98, 86, 12, 0x1A4F);
+  tft.drawRoundRect(16, 60, 98, 86, 12, TFT_CYAN);
+  tft.setTextColor(TFT_WHITE, 0x1A4F);
+  tft.drawCentreString("ANH", 65, 84, 4);
+  tft.setTextColor(TFT_CYAN, 0x1A4F);
+  tft.drawCentreString("Khung Anh", 65, 120, 2);
+
+  // App 2: Video Motion (X: 126, Y: 60)
+  tft.fillRoundRect(126, 60, 98, 86, 12, 0x4808);
+  tft.drawRoundRect(126, 60, 98, 86, 12, 0xFD20);
+  tft.setTextColor(TFT_WHITE, 0x4808);
+  tft.drawCentreString("VIDEO", 175, 84, 4);
+  tft.setTextColor(0xFD20, 0x4808);
+  tft.drawCentreString("Clip / GIF", 175, 120, 2);
+
+  // App 3: Bảng Viết Tay (X: 16, Y: 160)
+  tft.fillRoundRect(16, 160, 98, 86, 12, 0x0320);
+  tft.drawRoundRect(16, 160, 98, 86, 12, TFT_GREEN);
+  tft.setTextColor(TFT_WHITE, 0x0320);
+  tft.drawCentreString("VE", 65, 184, 4);
+  tft.setTextColor(TFT_GREEN, 0x0320);
+  tft.drawCentreString("But Cam Ung", 65, 220, 2);
+
+  // App 4: QR & Cài Đặt (X: 126, Y: 160)
+  tft.fillRoundRect(126, 160, 98, 86, 12, 0x3186);
+  tft.drawRoundRect(126, 160, 98, 86, 12, TFT_YELLOW);
+  tft.setTextColor(TFT_WHITE, 0x3186);
+  tft.drawCentreString("QR", 175, 184, 4);
+  tft.setTextColor(TFT_YELLOW, 0x3186);
+  tft.drawCentreString("Ket Noi Web", 175, 220, 2);
+
+  // Nút khóa màn hình / Vào Smartwatch ở đáy
+  tft.fillRoundRect(16, 262, 208, 44, 8, 0x2082);
+  tft.drawRoundRect(16, 262, 208, 44, 8, 0x05BF);
+  tft.setTextColor(0x05BF, 0x2082);
+  tft.drawCentreString("[ DONG HO SMARTWATCH ]", 120, 276, 2);
+
+  currentState = STATE_HOME_APPS;
+}
+
+// =====================================================================
+// 3. BẢNG VIẾT TAY (FIXED: KHÔNG XOÁ KHI ĐỔI MÀU)
+// =====================================================================
+void drawTopPalette() {
   tft.fillRect(0, 0, 240, 40, 0x18E3);
   const int swatchX[] = { 10, 48, 86, 124, 162, 200 };
   for (int i = 0; i < 5; i++) {
@@ -350,48 +475,54 @@ void drawWhiteboardUI() {
   if (currentPenColorIdx == 5) {
     tft.drawRoundRect(swatchX[5] - 2, 4, 32, 32, 5, TFT_CYAN);
   }
-
   tft.drawFastHLine(0, 41, 240, 0x4208);
+}
 
-  // 2. KHU VỰC VẼ CHÍNH: (Y: 42 -> 278) - ĐEN NỀN
-  tft.fillRect(0, 42, 240, 237, TFT_BLACK);
+void drawWhiteboardUI(bool reloadStrokes) {
+  gifPlaying = false;
+  setBacklight(true);
+  applyColorOrder();
 
-  // Vẽ lại các nét đã lưu trước đó nếu có
-  if (LittleFS.exists("/note.strokes")) {
-    File f = LittleFS.open("/note.strokes", "r");
-    if (f) {
-      StrokeSegment seg;
-      while (f.read((uint8_t*)&seg, sizeof(StrokeSegment)) == sizeof(StrokeSegment)) {
-        uint16_t c = (seg.colorIdx < 6) ? PALETTE[seg.colorIdx] : TFT_WHITE;
-        tft.drawLine(seg.x0, seg.y0, seg.x1, seg.y1, c);
-        tft.fillCircle(seg.x1, seg.y1, 1, c);
+  drawTopPalette();
+
+  if (reloadStrokes) {
+    // Vùng vẽ đen
+    tft.fillRect(0, 42, 240, 237, TFT_BLACK);
+    if (LittleFS.exists("/note.strokes")) {
+      File f = LittleFS.open("/note.strokes", "r");
+      if (f) {
+        StrokeSegment seg;
+        while (f.read((uint8_t*)&seg, sizeof(StrokeSegment)) == sizeof(StrokeSegment)) {
+          uint16_t c = (seg.colorIdx < 6) ? PALETTE[seg.colorIdx] : TFT_WHITE;
+          tft.drawLine(seg.x0, seg.y0, seg.x1, seg.y1, c);
+          tft.fillCircle(seg.x1, seg.y1, 1, c);
+        }
+        f.close();
       }
-      f.close();
+    } else {
+      tft.setTextColor(0x4208, TFT_BLACK);
+      tft.drawCentreString("[ Dung but cam ung viet vao day ]", 120, 150, 2);
     }
-  } else {
-    // Hướng dẫn mờ
-    tft.setTextColor(0x4208, TFT_BLACK);
-    tft.drawCentreString("[ Dung but cam ung viet vao day ]", 120, 150, 2);
   }
 
-  // 3. THANH ĐIỀU KHIỂN DƯỚI CÙNG (Y: 280 -> 320)
+  // Thanh điều khiển đáy
   tft.drawFastHLine(0, 279, 240, 0x4208);
   tft.fillRect(0, 280, 240, 40, 0x18E3);
 
-  // Nút Xoá (X: 6 -> 74)
-  tft.fillRoundRect(6, 285, 70, 30, 4, 0x8000); // Đỏ sẫm
+  // Xoá (X: 6 -> 74)
+  tft.fillRoundRect(6, 285, 70, 30, 4, 0x8000);
   tft.drawRoundRect(6, 285, 70, 30, 4, TFT_RED);
   tft.setTextColor(TFT_WHITE, 0x8000);
   tft.drawCentreString("XOA", 41, 292, 2);
 
-  // Nút Lưu (X: 84 -> 156)
-  tft.fillRoundRect(84, 285, 72, 30, 4, 0x0320); // Xanh lá
+  // Lưu (X: 84 -> 156)
+  tft.fillRoundRect(84, 285, 72, 30, 4, 0x0320);
   tft.drawRoundRect(84, 285, 72, 30, 4, TFT_GREEN);
   tft.setTextColor(TFT_WHITE, 0x0320);
   tft.drawCentreString("LUU", 120, 292, 2);
 
-  // Nút Thoát (X: 164 -> 234)
-  tft.fillRoundRect(164, 285, 70, 30, 4, 0x3186); // Xanh dương
+  // Thoát (X: 164 -> 234)
+  tft.fillRoundRect(164, 285, 70, 30, 4, 0x3186);
   tft.drawRoundRect(164, 285, 70, 30, 4, TFT_CYAN);
   tft.setTextColor(TFT_WHITE, 0x3186);
   tft.drawCentreString("THOAT", 199, 292, 2);
@@ -402,78 +533,67 @@ void drawWhiteboardUI() {
   lastPenY = -1;
 }
 
-// Hiển thị ghi chú đã lưu toàn màn hình
-void displaySavedNote() {
-  gifPlaying = false;
-  setBacklight(true);
-  applyColorOrder();
-  tft.fillScreen(TFT_BLACK);
-
-  tft.setTextColor(0x52AA, TFT_BLACK);
-  tft.drawCentreString("- GHI CHU VIET TAY -", 120, 10, 2);
-
-  if (LittleFS.exists("/note.strokes")) {
-    File f = LittleFS.open("/note.strokes", "r");
-    if (f) {
-      StrokeSegment seg;
-      while (f.read((uint8_t*)&seg, sizeof(StrokeSegment)) == sizeof(StrokeSegment)) {
-        uint16_t c = (seg.colorIdx < 6) ? PALETTE[seg.colorIdx] : TFT_WHITE;
-        tft.drawLine(seg.x0, seg.y0, seg.x1, seg.y1, c);
-        tft.fillCircle(seg.x1, seg.y1, 1, c);
-      }
-      f.close();
-    }
-  } else {
-    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-    tft.drawCentreString("Chua co ghi chu nao!", 120, 150, 2);
+// =====================================================================
+// 4. PHÁT VIDEO MJPEG & MOTION GRAPHIC TỪ ĐIỆN THOẠI
+// =====================================================================
+void playNextMjpegFrame() {
+  if (!mjpegFile) {
+    if (!LittleFS.exists("/motion.mjpg")) return;
+    mjpegFile = LittleFS.open("/motion.mjpg", "r");
+    if (!mjpegFile) return;
   }
 
-  tft.drawRoundRect(20, 282, 200, 30, 5, 0x028A);
-  tft.setTextColor(TFT_CYAN, TFT_BLACK);
-  tft.drawCentreString("[ CHAM DE VE MENU ]", 120, 289, 2);
+  int b = mjpegFile.read();
+  while (b != -1) {
+    if (b == 0xFF) {
+      int nextB = mjpegFile.read();
+      if (nextB == 0xD8) {
+        mjpegBuf[0] = 0xFF;
+        mjpegBuf[1] = 0xD8;
+        int bufIdx = 2;
+        while (bufIdx < (int)sizeof(mjpegBuf) - 1) {
+          int byteVal = mjpegFile.read();
+          if (byteVal == -1) break;
+          mjpegBuf[bufIdx++] = (uint8_t)byteVal;
+          if (byteVal == 0xD9 && mjpegBuf[bufIdx - 2] == 0xFF) {
+            TJpgDec.drawJpg(0, 0, mjpegBuf, bufIdx);
+            return;
+          }
+        }
+        break;
+      }
+    }
+    b = mjpegFile.read();
+  }
 
-  currentState = STATE_NOTE_VIEW;
+  // Hết file -> Lặp lại từ đầu
+  mjpegFile.seek(0);
 }
 
-// --- MATRIX DIGITAL RAIN ---
 void initMatrixRain() {
   tft.fillScreen(TFT_BLACK);
-  for (int i = 0; i < MATRIX_COLS; i++) {
-    matrixY[i] = random(-300, 0);
-  }
+  for (int i = 0; i < MATRIX_COLS; i++) matrixY[i] = random(-300, 0);
 }
 
 void updateMatrixRain() {
   for (int col = 0; col < MATRIX_COLS; col++) {
     int x = col * 10;
     int y = matrixY[col];
-
     if (y >= 0 && y < 310) {
-      // Đầu dòng: Ký tự trắng sáng
       char c = (char)random(33, 126);
       tft.setTextColor(TFT_WHITE, TFT_BLACK);
       tft.drawChar(c, x, y, 1);
-
-      // Thân: Ký tự xanh neon
       if (y >= 10) {
-        char cPrev = (char)random(33, 126);
         tft.setTextColor(0x07E0, TFT_BLACK);
-        tft.drawChar(cPrev, x, y - 10, 1);
+        tft.drawChar((char)random(33, 126), x, y - 10, 1);
       }
-      // Đuôi mờ
-      if (y >= 40) {
-        tft.fillRect(x, y - 40, 8, 8, TFT_BLACK);
-      }
+      if (y >= 40) tft.fillRect(x, y - 40, 8, 8, TFT_BLACK);
     }
-
     matrixY[col] += 8;
-    if (matrixY[col] > 320) {
-      matrixY[col] = random(-60, 0);
-    }
+    if (matrixY[col] > 320) matrixY[col] = random(-60, 0);
   }
 }
 
-// --- STARFIELD 3D WARP ---
 void initStarfield() {
   tft.fillScreen(TFT_BLACK);
   for (int i = 0; i < NUM_STARS; i++) {
@@ -487,22 +607,18 @@ void initStarfield() {
 
 void updateStarfield() {
   for (int i = 0; i < NUM_STARS; i++) {
-    // Xoá điểm cũ
     if (stars[i].oldSx >= 0 && stars[i].oldSx < 240 && stars[i].oldSy >= 0 && stars[i].oldSy < 320) {
       tft.drawPixel(stars[i].oldSx, stars[i].oldSy, TFT_BLACK);
     }
-
     stars[i].z -= 6;
     if (stars[i].z <= 10) {
       stars[i].x = random(-120, 120);
       stars[i].y = random(-160, 160);
       stars[i].z = 255;
     }
-
     int k = (int)(stars[i].z);
     int sx = 120 + (int)(stars[i].x * 128 / k);
     int sy = 160 + (int)(stars[i].y * 128 / k);
-
     if (sx >= 0 && sx < 240 && sy >= 0 && sy < 320) {
       uint16_t col = (stars[i].z < 100) ? TFT_WHITE : ((stars[i].z < 180) ? TFT_CYAN : 0x4228);
       tft.drawPixel(sx, sy, col);
@@ -514,97 +630,113 @@ void updateStarfield() {
   }
 }
 
-// Khởi chạy chế độ Motion Graphic
 void startMotionMode() {
   gifPlaying = false;
+  if (mjpegFile) { mjpegFile.close(); }
   setBacklight(true);
   applyColorOrder();
   tft.fillScreen(TFT_BLACK);
   currentState = STATE_MOTION;
 
-  if (motionMode == "file" && LittleFS.exists("/motion.gif")) {
+  if (motionMode == "gif" && LittleFS.exists("/motion.gif")) {
     gif.begin(GIF_PALETTE_RGB565_BE);
     if (gif.open("/motion.gif", GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw)) {
       gifPlaying = true;
-      Serial.println("[GIF] Bat dau phat /motion.gif thanh cong!");
     }
+  } else if (motionMode == "mjpeg" || LittleFS.exists("/motion.mjpg")) {
+    motionMode = "mjpeg";
+    mjpegFile = LittleFS.open("/motion.mjpg", "r");
   } else if (motionMode == "matrix") {
     initMatrixRain();
-  } else if (motionMode == "starfield") {
-    initStarfield();
   } else {
-    // Mặc định: Starfield nếu chưa có file
     motionMode = "starfield";
     initStarfield();
   }
 }
 
-// Đồng hồ AOD
-void drawStandbyClock(bool fullRedraw) {
-  time_t now = time(nullptr);
-  struct tm* t = localtime(&now);
-  int sec = t->tm_sec;
-  if (!fullRedraw && sec == lastDrawnSecond) return;
-  lastDrawnSecond = sec;
+// =====================================================================
+// 5. MÀN HÌNH QR & XEM ẢNH
+// =====================================================================
+void drawTwoQRScreen() {
+  gifPlaying = false;
+  if (mjpegFile) mjpegFile.close();
+  setBacklight(true);
+  applyColorOrder();
+  tft.fillScreen(0x0841);
 
-  if (fullRedraw) {
-    applyColorOrder();
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(0x52AA, TFT_BLACK);
-    tft.drawCentreString("- MAN HINH CHO (AOD) -", 120, 16, 2);
-    tft.drawFastHLine(30, 38, 180, 0x2104);
-    tft.drawRoundRect(20, 275, 200, 32, 6, 0x0320);
-    tft.setTextColor(0x2408, TFT_BLACK);
-    tft.drawCentreString("[ CHAM DE MO ANH ]", 120, 283, 2);
-  }
+  tft.fillRect(0, 0, 240, 26, 0x10A2);
+  tft.setTextColor(TFT_YELLOW, 0x10A2);
+  tft.drawCentreString("KET NOI VA MENU DIEU KHIEN", 120, 5, 2);
 
-  char timeBuf[12];
-  snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d", t->tm_hour, t->tm_min);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawCentreString(timeBuf, 120, 65, 7);
+  tft.fillRoundRect(6, 30, 228, 105, 6, 0x10A2);
+  tft.drawRoundRect(6, 30, 228, 105, 6, TFT_CYAN);
+  renderQR("WIFI:T:nopass;S:KhungAnh-ESP32;;", 14, 38, 3);
+  tft.setTextColor(TFT_CYAN, 0x10A2);
+  tft.drawString("BUOC 1:", 112, 38, 2);
+  tft.setTextColor(TFT_WHITE, 0x10A2);
+  tft.drawString("Vao Wi-Fi:", 112, 56, 2);
+  tft.setTextColor(TFT_GREEN, 0x10A2);
+  tft.drawString("KhungAnh-ESP32", 112, 74, 2);
+  tft.setTextColor(TFT_LIGHTGREY, 0x10A2);
+  tft.drawString("(Khong mat khau)", 112, 94, 1);
 
-  char secBuf[8];
-  snprintf(secBuf, sizeof(secBuf), ":%02d", t->tm_sec);
-  tft.setTextColor(TFT_CYAN, TFT_BLACK);
-  tft.drawCentreString(secBuf, 120, 135, 4);
+  tft.fillRoundRect(6, 140, 228, 105, 6, 0x10A2);
+  tft.drawRoundRect(6, 140, 228, 105, 6, 0xFD20);
+  renderQR("http://192.168.4.1", 14, 148, 3);
+  tft.setTextColor(0xFD20, 0x10A2);
+  tft.drawString("BUOC 2:", 112, 148, 2);
+  tft.setTextColor(TFT_WHITE, 0x10A2);
+  tft.drawString("Mo trinh duyet:", 112, 166, 2);
+  tft.setTextColor(TFT_YELLOW, 0x10A2);
+  tft.drawString("192.168.4.1", 112, 186, 2);
+  tft.setTextColor(TFT_LIGHTGREY, 0x10A2);
+  tft.drawString("Gui anh/video/ve", 112, 206, 2);
 
-  const char* wdays[] = {"CN", "T.Hai", "T.Ba", "T.Tu", "T.Nam", "T.Sau", "T.Bay"};
-  char dateBuf[32];
-  snprintf(dateBuf, sizeof(dateBuf), "%s, %02d/%02d/%04d", wdays[t->tm_wday % 7], t->tm_mday, t->tm_mon + 1, t->tm_year + 1900);
-  tft.setTextColor(0xFD20, TFT_BLACK);
-  tft.drawCentreString(dateBuf, 120, 180, 4);
+  // Nút về Home Screen
+  tft.fillRoundRect(16, 256, 208, 48, 8, 0x0320);
+  tft.drawRoundRect(16, 256, 208, 48, 8, TFT_GREEN);
+  tft.setTextColor(TFT_WHITE, 0x0320);
+  tft.drawCentreString("[ VE MAN HINH CHINH ]", 120, 272, 2);
 
-  tft.setTextColor(0x7BEF, TFT_BLACK);
-  tft.drawCentreString("AP: KhungAnh-ESP32", 120, 225, 2);
+  currentState = STATE_QR;
 }
 
-// Bắt đầu chế độ chờ (Standby)
+void displayMainPhoto() {
+  gifPlaying = false;
+  if (mjpegFile) mjpegFile.close();
+  setBacklight(true);
+  if (LittleFS.exists("/photo.jpg")) {
+    applyColorOrder();
+    tft.fillScreen(TFT_BLACK);
+    TJpgDec.drawFsJpg(0, 0, "/photo.jpg", LittleFS);
+    currentState = STATE_MAIN_PHOTO;
+  } else {
+    drawHomeScreen();
+  }
+}
+
+// Bắt đầu chế độ chờ
 void enterStandby() {
   Serial.printf("[STANDBY] Vao che do: %s\n", cfgMode.c_str());
-  currentState = STATE_STANDBY;
-
   if (cfgMode == "sleep") {
     setBacklight(false);
+    currentState = STATE_STANDBY_WATCH;
   } else if (cfgMode == "motion") {
     startMotionMode();
-    currentState = STATE_STANDBY; // giữ cờ standby để chạm là thức giấc
-  } else if (cfgMode == "note") {
-    displaySavedNote();
-    currentState = STATE_STANDBY;
   } else if (cfgMode == "photo") {
     displayMainPhoto();
-    currentState = STATE_STANDBY;
   } else {
-    // "clock" (Mặc định)
+    // "watch" (Mặt đồng hồ Smartwatch - Hình 2)
     setBacklight(true);
-    drawStandbyClock(true);
+    drawWatchFaceStatic();
+    currentState = STATE_STANDBY_WATCH;
   }
 }
 
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n=== DỰ ÁN 06: KHUNG ẢNH, VIDEO MOTION & BẢNG VIẾT TAY ===");
+  Serial.println("\n=== DIEN THOAI THU NHO ESP32 CYD (BAI 06) ===");
 
   pinMode(TFT_BL, OUTPUT);
   setBacklight(true);
@@ -622,10 +754,8 @@ void setup() {
   touchSpi.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
   ts.begin(touchSpi);
   ts.setRotation(0);
-  Serial.println("[TOUCH] Cam ung XPT2046 da san sang!");
 
   if (LittleFS.begin(true)) {
-    Serial.println("[FS] LittleFS san sang.");
     loadConfig();
   }
 
@@ -634,15 +764,10 @@ void setup() {
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, netMsk);
   WiFi.softAP(AP_SSID);
-  Serial.printf("[WIFI AP] Da phat: %s (192.168.4.1)\n", AP_SSID);
-
   dnsServer.start(DNS_PORT, "*", apIP);
 
-  if (LittleFS.exists("/photo.jpg")) {
-    displayMainPhoto();
-  } else {
-    drawTwoQRScreen();
-  }
+  // Khởi động vào Mặt đồng hồ Smartwatch (Hình 2)
+  drawWatchFaceStatic();
   lastActivityTime = millis();
 
   // --- CẤU HÌNH WEB SERVER ---
@@ -661,7 +786,7 @@ void setup() {
     if (server.hasArg("mode")) cfgMode = server.arg("mode");
     saveConfig();
     lastActivityTime = millis();
-    server.send(200, "text/plain", "Da luu cau hinh!");
+    server.send(200, "text/plain", "Da luu!");
   });
 
   server.on("/sync_time", HTTP_GET, []() {
@@ -677,86 +802,101 @@ void setup() {
     }
   });
 
+  server.on("/sync_weather", HTTP_GET, []() {
+    if (server.hasArg("temp")) currentTemp = server.arg("temp").toFloat();
+    if (server.hasArg("rain")) currentRain = server.arg("rain").toFloat();
+    saveConfig();
+    if (currentState == STATE_STANDBY_WATCH) drawWatchFaceStatic();
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.on("/show_watch", HTTP_GET, []() {
+    drawWatchFaceStatic();
+    currentState = STATE_STANDBY_WATCH;
+    server.send(200, "text/plain", "Dang hien thi Smartwatch!");
+  });
+
   server.on("/toggle_color", HTTP_GET, []() {
     isBGR = !isBGR;
     applyColorOrder();
     saveConfig();
-    if (currentState == STATE_MAIN_PHOTO) displayMainPhoto();
+    if (currentState == STATE_STANDBY_WATCH) drawWatchFaceStatic();
+    else if (currentState == STATE_HOME_APPS) drawHomeScreen();
+    else if (currentState == STATE_MAIN_PHOTO) displayMainPhoto();
     server.send(200, "text/plain", isBGR ? "BGR" : "RGB");
   });
 
-  // Mở Bảng Vẽ từ xa qua Web
   server.on("/whiteboard", HTTP_GET, []() {
-    drawWhiteboardUI();
-    server.send(200, "text/plain", "Da mo bang ve tren ESP32");
+    drawWhiteboardUI(true);
+    server.send(200, "text/plain", "Da mo bang ve!");
   });
 
-  // Xem ghi chú đã lưu từ Web
   server.on("/view_note", HTTP_GET, []() {
-    displaySavedNote();
-    server.send(200, "text/plain", "Dang hien thi ghi chu");
+    drawWhiteboardUI(true);
+    server.send(200, "text/plain", "Dang xem ghi chu");
   });
 
-  // Xoá ghi chú viết tay
   server.on("/clear_note", HTTP_GET, []() {
     if (LittleFS.exists("/note.strokes")) LittleFS.remove("/note.strokes");
-    if (currentState == STATE_WHITEBOARD) drawWhiteboardUI();
-    else if (currentState == STATE_NOTE_VIEW) displaySavedNote();
-    server.send(200, "text/plain", "Da xoa ghi chu!");
+    if (currentState == STATE_WHITEBOARD) drawWhiteboardUI(true);
+    server.send(200, "text/plain", "Da xoa!");
   });
 
-  // Đổi hiệu ứng Motion
   server.on("/set_effect", HTTP_GET, []() {
     if (server.hasArg("eff")) {
       motionMode = server.arg("eff");
       saveConfig();
       startMotionMode();
-      server.send(200, "text/plain", "Dang phat hieu ung: " + motionMode);
+      server.send(200, "text/plain", "Dang phat: " + motionMode);
     } else {
       server.send(400, "text/plain", "Thieu eff");
     }
   });
 
-  // Upload Ảnh chính
   server.on("/upload", HTTP_POST, []() {
     server.send(200, "text/plain", "OK");
-    needRedrawMain = true;
     lastActivityTime = millis();
+    displayMainPhoto();
   }, []() {
     HTTPUpload& upload = server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
-      uploadFile = LittleFS.open("/photo.jpg", "w");
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-      if (uploadFile) uploadFile.write(upload.buf, upload.currentSize);
-    } else if (upload.status == UPLOAD_FILE_END) {
-      if (uploadFile) uploadFile.close();
-    }
+    if (upload.status == UPLOAD_FILE_START) uploadFile = LittleFS.open("/photo.jpg", "w");
+    else if (upload.status == UPLOAD_FILE_WRITE && uploadFile) uploadFile.write(upload.buf, upload.currentSize);
+    else if (upload.status == UPLOAD_FILE_END && uploadFile) uploadFile.close();
   });
 
-  // Upload GIF / Motion Graphic
   server.on("/upload_gif", HTTP_POST, []() {
     server.send(200, "text/plain", "OK");
-    motionMode = "file";
+    motionMode = "gif";
     saveConfig();
-    needRedrawMotion = true;
+    startMotionMode();
+    lastActivityTime = millis();
+  }, []() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) uploadFile = LittleFS.open("/motion.gif", "w");
+    else if (upload.status == UPLOAD_FILE_WRITE && uploadFile) uploadFile.write(upload.buf, upload.currentSize);
+    else if (upload.status == UPLOAD_FILE_END && uploadFile) uploadFile.close();
+  });
+
+  server.on("/upload_mjpeg", HTTP_POST, []() {
+    server.send(200, "text/plain", "OK");
+    motionMode = "mjpeg";
+    saveConfig();
+    startMotionMode();
     lastActivityTime = millis();
   }, []() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
-      Serial.printf("[UPLOAD GIF] Nhan file: %s\n", upload.filename.c_str());
-      uploadFile = LittleFS.open("/motion.gif", "w");
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-      if (uploadFile) uploadFile.write(upload.buf, upload.currentSize);
-    } else if (upload.status == UPLOAD_FILE_END) {
-      if (uploadFile) {
-        uploadFile.close();
-        Serial.printf("[UPLOAD GIF] Hoan tat! %u bytes\n", upload.totalSize);
-      }
+      if (mjpegFile) mjpegFile.close();
+      uploadFile = LittleFS.open("/motion.mjpg", "w");
+    } else if (upload.status == UPLOAD_FILE_WRITE && uploadFile) {
+      uploadFile.write(upload.buf, upload.currentSize);
+    } else if (upload.status == UPLOAD_FILE_END && uploadFile) {
+      uploadFile.close();
     }
   });
 
   server.begin();
-  Serial.println("[SERVER] Web Server san sang!");
+  Serial.println("[SERVER] San sang!");
 }
 
 void loop() {
@@ -766,18 +906,18 @@ void loop() {
   unsigned long now = millis();
 
   // ===================================================================
-  // 1. XỬ LÝ CẢM ỨNG (TOUCH / PEN INPUT)
+  // 1. XỬ LÝ CẢM ỨNG (TOUCH / STYLUS INPUT)
   // ===================================================================
   if (ts.touched()) {
     TS_Point p = ts.getPoint();
     int sx = touchToScreenX(p.x);
     int sy = touchToScreenY(p.y);
 
-    // --- TRƯỜNG HỢP A: ĐANG Ở BẢNG VIẾT TAY (WHITEBOARD) ---
+    // --- TRƯỜNG HỢP A: BẢNG VIẾT TAY (WHITEBOARD) ---
     if (currentState == STATE_WHITEBOARD) {
       lastActivityTime = now;
 
-      // 1. Chạm vùng Bảng màu trên đỉnh (Y < 42)
+      // 1. Chạm vùng Bảng màu (Y < 42): CHỈ VẼ LẠI PALETTE, KHÔNG XOÁ BẢNG!
       if (sy < 42) {
         if (now - lastTouchTime > 250) {
           lastTouchTime = now;
@@ -785,7 +925,7 @@ void loop() {
           for (int i = 0; i < 6; i++) {
             if (sx >= swatchX[i] - 4 && sx <= swatchX[i] + 32) {
               currentPenColorIdx = i;
-              drawWhiteboardUI();
+              drawTopPalette(); // CHỈ VẼ LẠI THANH MÀU!
               break;
             }
           }
@@ -799,19 +939,17 @@ void loop() {
           if (sx >= 6 && sx <= 74) {
             if (LittleFS.exists("/note.strokes")) LittleFS.remove("/note.strokes");
             tft.fillRect(0, 42, 240, 237, TFT_BLACK);
-            Serial.println("[WHITEBOARD] Da xoa bang ve!");
           }
           // Nút Lưu (X: 84 -> 156)
           else if (sx >= 84 && sx <= 156) {
             tft.setTextColor(TFT_GREEN, 0x18E3);
             tft.drawCentreString("DA LUU!", 120, 292, 2);
-            delay(500);
+            delay(400);
             tft.drawCentreString("LUU", 120, 292, 2);
-            Serial.println("[WHITEBOARD] Da luu ghi chu thanh cong!");
           }
           // Nút Thoát (X: 164 -> 234)
           else if (sx >= 164 && sx <= 234) {
-            displayMainPhoto();
+            drawHomeScreen();
           }
         }
       }
@@ -819,15 +957,12 @@ void loop() {
       else {
         uint16_t penColor = (currentPenColorIdx < 6) ? PALETTE[currentPenColorIdx] : TFT_WHITE;
         if (penColor == TFT_BLACK) {
-          // Cục tẩy xoá
           tft.fillCircle(sx, sy, 8, TFT_BLACK);
         } else {
-          // Nét viết bút
           if (penWasDown && lastPenX >= 0) {
             tft.drawLine(lastPenX, lastPenY, sx, sy, penColor);
             tft.fillCircle(sx, sy, 1, penColor);
 
-            // Ghi nhận nét vẽ vào LittleFS
             File f = LittleFS.open("/note.strokes", "a");
             if (f) {
               StrokeSegment seg = { (uint8_t)lastPenX, (uint16_t)lastPenY, (uint8_t)sx, (uint16_t)sy, (uint8_t)currentPenColorIdx };
@@ -843,63 +978,74 @@ void loop() {
         penWasDown = true;
       }
     }
-    // --- TRƯỜNG HỢP B: ĐANG Ở CÁC TRẠNG THÁI KHÁC ---
-    else {
-      if (now - lastTouchTime > 450) {
+    // --- TRƯỜNG HỢP B: ĐỒNG HỒ SMARTWATCH (CHẠM ĐỂ MỞ KHÓA VÀO HOME) ---
+    else if (currentState == STATE_STANDBY_WATCH) {
+      if (now - lastTouchTime > 400) {
+        lastTouchTime = now;
+        lastActivityTime = now;
+        setBacklight(true);
+        drawHomeScreen();
+      }
+    }
+    // --- TRƯỜNG HỢP C: MÀN HÌNH CHÍNH SMARTPHONE (CHỌN APP) ---
+    else if (currentState == STATE_HOME_APPS) {
+      if (now - lastTouchTime > 350) {
         lastTouchTime = now;
         lastActivityTime = now;
 
-        if (currentState == STATE_STANDBY) {
-          Serial.println("[TOUCH] Thuc giac tu Standby -> Ve Anh Chinh!");
+        // App 1: Khung Ảnh (Y: 60-146, X: 16-114)
+        if (sy >= 60 && sy <= 146 && sx >= 16 && sx <= 114) {
           displayMainPhoto();
-        } else if (currentState == STATE_MOTION || currentState == STATE_NOTE_VIEW) {
-          Serial.println("[TOUCH] Chuyen ve Anh Chinh!");
-          displayMainPhoto();
-        } else if (currentState == STATE_MAIN_PHOTO) {
-          Serial.println("[TOUCH] Mo Menu QR & Tinh nang!");
+        }
+        // App 2: Video (Y: 60-146, X: 126-224)
+        else if (sy >= 60 && sy <= 146 && sx >= 126 && sx <= 224) {
+          startMotionMode();
+        }
+        // App 3: Bảng Viết Tay (Y: 160-246, X: 16-114)
+        else if (sy >= 160 && sy <= 246 && sx >= 16 && sx <= 114) {
+          drawWhiteboardUI(true);
+        }
+        // App 4: QR & Cài Đặt (Y: 160-246, X: 126-224)
+        else if (sy >= 160 && sy <= 246 && sx >= 126 && sx <= 224) {
           drawTwoQRScreen();
-        } else if (currentState == STATE_QR) {
-          // Xử lý 3 nút bấm ở đáy màn hình QR
-          if (sy >= 250) {
-            if (sx < 80) {
-              displayMainPhoto();
-            } else if (sx >= 84 && sx <= 156) {
-              drawWhiteboardUI();
-            } else if (sx > 160) {
-              startMotionMode();
-            }
-          } else {
-            displayMainPhoto();
-          }
+        }
+        // Nút Đồng Hồ Smartwatch ở đáy
+        else if (sy >= 260) {
+          drawWatchFaceStatic();
+          currentState = STATE_STANDBY_WATCH;
         }
       }
     }
+    // --- TRƯỜNG HỢP D: ĐANG Ở XEM ẢNH, VIDEO HOẶC QR ---
+    else {
+      if (now - lastTouchTime > 400) {
+        lastTouchTime = now;
+        lastActivityTime = now;
+        drawHomeScreen(); // Chạm để quay về màn hình chính
+      }
+    }
   } else {
-    // Nhấc bút cảm ứng lên
     penWasDown = false;
     lastPenX = -1;
     lastPenY = -1;
   }
 
   // ===================================================================
-  // 2. PHÁT VIDEO / MOTION GRAPHIC HOẶC HIỆU ỨNG
+  // 2. PHÁT VIDEO MJPEG & MOTION GRAPHIC
   // ===================================================================
-  if (currentState == STATE_MOTION || (currentState == STATE_STANDBY && cfgMode == "motion")) {
-    if (motionMode == "file" && LittleFS.exists("/motion.gif")) {
-      if (!gifPlaying) {
-        gif.begin(GIF_PALETTE_RGB565_BE);
-        if (gif.open("/motion.gif", GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw)) {
-          gifPlaying = true;
-        }
+  if (currentState == STATE_MOTION) {
+    if (motionMode == "mjpeg") {
+      if (now - lastMjpegFrameTime >= 80) { // ~12 fps mượt mà
+        lastMjpegFrameTime = now;
+        playNextMjpegFrame();
       }
-      if (gifPlaying) {
-        if (!gif.playFrame(true, NULL)) {
-          gif.reset(); // lặp lại vô tận
-        }
+    } else if (motionMode == "gif" && gifPlaying) {
+      if (!gif.playFrame(true, NULL)) {
+        gif.reset();
       }
     } else if (motionMode == "matrix") {
       updateMatrixRain();
-      delay(30);
+      delay(25);
     } else if (motionMode == "starfield") {
       updateStarfield();
       delay(15);
@@ -907,34 +1053,19 @@ void loop() {
   }
 
   // ===================================================================
-  // 3. KIỂM TRA THỜI GIAN VÀO STANDBY (IDLE TIMEOUT)
+  // 3. TỰ ĐỘNG KHÓA VÀ VÀO SMARTWATCH SAU 30S KHÔNG CHẠM
   // ===================================================================
-  if (cfgTimeout > 0 && currentState != STATE_STANDBY && currentState != STATE_WHITEBOARD) {
+  if (cfgTimeout > 0 && currentState != STATE_STANDBY_WATCH && currentState != STATE_WHITEBOARD) {
     if (now - lastActivityTime >= (unsigned long)cfgTimeout * 1000UL) {
       enterStandby();
     }
   }
 
   // ===================================================================
-  // 4. CẬP NHẬT ĐỒNG HỒ AOD TRONG STANDBY
+  // 4. CẬP NHẬT MẶT ĐỒNG HỒ SMARTWATCH
   // ===================================================================
-  if (currentState == STATE_STANDBY && cfgMode == "clock") {
-    if (now - lastClockDraw >= 1000) {
-      lastClockDraw = now;
-      drawStandbyClock(false);
-    }
-  }
-
-  // ===================================================================
-  // 5. CẬP NHẬT KHI CÓ FILE MỚI UPLOAD
-  // ===================================================================
-  if (needRedrawMain) {
-    needRedrawMain = false;
-    displayMainPhoto();
-  }
-  if (needRedrawMotion) {
-    needRedrawMotion = false;
-    startMotionMode();
+  if (currentState == STATE_STANDBY_WATCH && backlightOn) {
+    updateWatchHands();
   }
 
   delay(2);
